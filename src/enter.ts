@@ -22,8 +22,11 @@ export interface WorktreeSession {
   /** Absolute path of the worktree this session is rooted in. */
   path: string;
   branch: string | null;
-  /** Session file we forked from, so ExitWorktree knows where to go back. */
-  parentSession: string;
+  /** Primary checkout to return to and merge into. */
+  primaryPath: string;
+  primaryBranch: string | null;
+  /** Session file we forked from, or null when a fresh session was created. */
+  parentSession: string | null;
   /** True when entering created the worktree, so leaving may offer to remove it. */
   created: boolean;
   enteredAt: number;
@@ -61,7 +64,9 @@ export function readWorktreeSession(entries: readonly BranchEntryLike[]): Worktr
     state = {
       path: data.path,
       branch: typeof data.branch === "string" ? data.branch : null,
-      parentSession: typeof data.parentSession === "string" ? data.parentSession : "",
+      primaryPath: typeof data.primaryPath === "string" ? data.primaryPath : "",
+      primaryBranch: typeof data.primaryBranch === "string" ? data.primaryBranch : null,
+      parentSession: typeof data.parentSession === "string" ? data.parentSession : null,
       created: data.created === true,
       enteredAt: typeof data.enteredAt === "number" ? data.enteredAt : 0,
     };
@@ -77,7 +82,8 @@ export type EnterProblem =
 
 export interface EnterPlan {
   target: { path: string; branch: string | null };
-  parentSession: string;
+  parentSession: string | null;
+  mode: "fork" | "new";
 }
 
 /** What we know about the session we would be forking. */
@@ -97,41 +103,29 @@ function samePath(a: string, b: string): boolean {
 }
 
 /**
- * Decide whether entering is possible before anything is forked. Each refusal
- * names which of the four things went wrong, because the fixes differ: start a
- * persisted session, say something first, create the worktree, or do nothing
- * at all.
+ * Decide how entering should happen before anything is switched. A persisted
+ * session is forked; an empty or unwritten session is replaced with a new
+ * session rooted in the target worktree.
  */
 export function planEnter(
   cwd: string,
   parent: ParentSession,
   target: { path: string; branch: string | null } | null,
 ): EnterPlan | EnterProblem {
-  if (!parent.file) {
-    return {
-      kind: "no-session",
-      message:
-        "Entering a worktree forks this session, so it needs a persisted one. Start pi without --no-session.",
-    };
-  }
-  if (!parent.onDisk) {
-    return {
-      kind: "unwritten",
-      message:
-        "This session has not been written to disk yet — pi saves it once the agent has replied, and there is " +
-        "nothing to carry across until then. Ask something first, or open the worktree in its own pi.",
-    };
-  }
   if (!target) {
     return {
       kind: "not-found",
-      message: "No worktree matches that. /worktree list shows them; /worktree create <branch> makes one.",
+      message: "No worktree matches that. /worktree shows them; /worktree-create <branch> makes one.",
     };
   }
   if (samePath(cwd, target.path)) {
     return { kind: "already-here", message: "This session is already rooted in that worktree." };
   }
-  return { target, parentSession: parent.file };
+  return {
+    target,
+    parentSession: parent.file && parent.onDisk ? parent.file : null,
+    mode: parent.file && parent.onDisk ? "fork" : "new",
+  };
 }
 
 export function enteredNote(session: WorktreeSession): string {
@@ -139,7 +133,7 @@ export function enteredNote(session: WorktreeSession): string {
   return [
     `Entered worktree ${session.path}${branch}.`,
     "read, edit, bash and @ completion are rooted here now; the conversation came with you.",
-    "/worktree exit returns to the session you came from.",
+    "/worktree-exit returns to the primary checkout.",
   ].join(" ");
 }
 
@@ -147,7 +141,7 @@ export function exitNote(session: WorktreeSession): string {
   return [
     `Left the worktree at ${session.path}; the conversation came back with you.`,
     session.created
-      ? "It was created by entering, and is still there — /worktree remove drops it, worktree_merge merges it back."
+      ? "It was created by entering, and is still there — /worktree-merge merges it, and worktree_remove can remove it."
       : "It is untouched.",
   ].join(" ");
 }

@@ -87,18 +87,20 @@ export default function worktree(pi: ExtensionAPI) {
   }
 
   /**
-   * Enter a worktree by forking this session into it. pi binds its built-in
-   * tools to the session cwd and a session cannot change its own, so the only
-   * way to take the conversation along is a replacement session.
+   * Enter a worktree by replacing the current session. Persisted sessions are
+   * forked so the conversation comes along; empty sessions are created fresh
+   * with the worktree as their cwd.
    */
   async function enterWorktree(ctx: CommandContext, wanted: string, created = false): Promise<void> {
     requireRepo(ctx);
     if (typeof ctx.switchSession !== "function") {
-      ctx.ui.notify("This pi build cannot switch sessions, so /worktree enter is unavailable.", "error");
+      ctx.ui.notify("This pi build cannot switch sessions, so worktree entry is unavailable.", "error");
       return;
     }
 
-    const match = resolveWorktree(listWorktrees(ctx.cwd), wanted);
+    const worktrees = listWorktrees(ctx.cwd);
+    const primary = worktrees.find((w) => w.primary);
+    const match = resolveWorktree(worktrees, wanted);
     const file = ctx.sessionManager.getSessionFile() ?? null;
     const plan = planEnter(
       ctx.cwd,
@@ -110,21 +112,34 @@ export default function worktree(pi: ExtensionAPI) {
       return;
     }
 
+    if (!primary) {
+      ctx.ui.notify("The repository has no primary worktree.", "error");
+      return;
+    }
+
     const state: WorktreeSession = {
       path: plan.target.path,
       branch: plan.target.branch,
+      primaryPath: primary.path,
+      primaryBranch: primary.branch,
       parentSession: plan.parentSession,
       created,
       enteredAt: Date.now(),
     };
 
     try {
-      // forkFrom copies the conversation into a session file rooted at the
-      // worktree; switching to it is what rebinds read/edit/bash and @.
-      const replacement = SessionManager.forkFrom(plan.parentSession, state.path);
-      const replacementFile = replacement.getSessionFile();
-      if (!replacementFile) throw new Error("the forked session has no file");
+      // A persisted session carries the conversation. An empty or unwritten
+      // session gets a new session rooted directly in the target worktree.
+      const replacement = plan.mode === "fork"
+        ? SessionManager.forkFrom(plan.parentSession!, state.path)
+        : SessionManager.create(state.path);
+      const replacementFileBeforeMetadata = replacement.getSessionFile();
+      if (plan.mode === "fork" && !replacementFileBeforeMetadata) {
+        throw new Error("the forked session has no file");
+      }
       replacement.appendCustomEntry(WORKTREE_SESSION_ENTRY, state);
+      const replacementFile = replacement.getSessionFile();
+      if (!replacementFile) throw new Error("the replacement session has no file");
       const { cancelled } = await ctx.switchSession(replacementFile, {
         withSession: async (next) => {
           next.ui.notify(enteredNote(state), "info");
@@ -150,7 +165,7 @@ export default function worktree(pi: ExtensionAPI) {
       return;
     }
     if (typeof ctx.switchSession !== "function") {
-      ctx.ui.notify("This pi build cannot switch sessions, so /worktree exit is unavailable.", "error");
+      ctx.ui.notify("This pi build cannot switch sessions, so /worktree-exit is unavailable.", "error");
       return;
     }
 
@@ -194,6 +209,34 @@ export default function worktree(pi: ExtensionAPI) {
       ctx.ui.notify(`Could not exit: ${err instanceof Error ? err.message : String(err)}`, "error");
     }
   }
+
+  pi.registerCommand("worktree-create", {
+    description: "Create a branch and worktree, then enter it",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+      const branch = (args ?? "").trim();
+      if (!branch) {
+        ctx.ui.notify("Usage: /worktree-create <branch>", "warning");
+        return;
+      }
+      if (!validBranchName(branch)) {
+        ctx.ui.notify(`Invalid branch name "${branch}".`, "warning");
+        return;
+      }
+      try {
+        requireRepo(ctx);
+        await ctx.waitForIdle();
+        const result = await createWorktree(ctx.cwd, branch);
+        if (!result.ok) {
+          ctx.ui.notify(result.message, "error");
+          return;
+        }
+        await enterWorktree(ctx, branch, true);
+      } catch (err) {
+        ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
+      }
+    },
+  });
 
   // ── Tools ────────────────────────────────────────────────────────────
 
