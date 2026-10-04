@@ -47,10 +47,7 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
             const words = rest.split(/\s+/).filter(Boolean);
             const positional = words;
             const [arg, base] = positional;
-            if (!arg) {
-              ctx.ui.notify("Usage: /worktree create <branch> [base]", "warning");
-              return;
-            }
+            if (!arg) return ctx.ui.notify("Usage: /worktree create <branch> [base]", "warning");
             if (positional.length > 2 || words.some((word) => word.startsWith("-"))) {
               ctx.ui.notify("Usage: /worktree create <branch> [base]", "warning");
               return;
