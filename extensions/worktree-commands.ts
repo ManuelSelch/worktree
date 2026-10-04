@@ -9,7 +9,6 @@ const SUBCOMMANDS: AutocompleteItem[] = [
   { value: "create", label: "create — create and enter a worktree" },
   { value: "enter", label: "enter — enter an existing worktree" },
   { value: "exit", label: "exit — return to the primary checkout" },
-  { value: "help", label: "help — show worktree command usage" },
   { value: "list", label: "list — show all worktrees" },
   { value: "merge", label: "merge — merge a worktree into the primary branch" },
   { value: "prune", label: "prune — remove stale worktree metadata" },
@@ -31,7 +30,7 @@ function getArgumentCompletions(prefix: string): AutocompleteItem[] | null {
 
 export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeController): void {
   pi.registerCommand("worktree", {
-    description: "Manage git worktrees; use /worktree <subcommand> --help",
+    description: "Manage git worktrees; type /worktree for subcommand completion",
     getArgumentCompletions,
     handler: async (args, ctx) => {
       if (!ctx.hasUI) return;
@@ -39,37 +38,8 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
       const route = (text.split(/\s+/)[0] ?? "").toLowerCase();
       const rest = text.slice(route.length).trim();
       try {
-        if (rest === "--help" || rest === "-h") {
-          ctx.ui.notify(
-            `Usage: /worktree ${route || "[subcommand]"}\n` +
-              (route === "create" ? "create <branch> [base] (enters automatically)" :
-                route === "enter" ? "enter <branch|path>" :
-                  route === "remove" ? "remove <branch|path>" :
-                    route === "merge" ? "merge <branch>" :
-                      route === "exit" ? "exit" :
-                        route === "prune" ? "prune" :
-                          "Use /worktree <subcommand> --help for command-specific usage."),
-            "info",
-          );
-          return;
-        }
         controller.requireRepo(ctx);
         switch (route || "list") {
-          case "help":
-            ctx.ui.notify(
-              [
-                "Usage: /worktree <subcommand>",
-                "/worktree                         list worktrees",
-                "/worktree create <branch> [base] (enters automatically)",
-                "/worktree enter <branch|path>",
-                "/worktree exit",
-                "/worktree remove <branch|path>",
-                "/worktree merge <branch>",
-                "/worktree prune",
-              ].join("\n"),
-              "info",
-            );
-            return;
           case "list":
             ctx.ui.notify(controller.listText(ctx), "info");
             return;
@@ -136,7 +106,7 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
           }
           default:
             ctx.ui.notify(
-              `Unknown subcommand "${route}". Use /worktree help or type /worktree for completions.`,
+              `Unknown subcommand "${route}". Type /worktree for available commands.`,
               "warning",
             );
         }
