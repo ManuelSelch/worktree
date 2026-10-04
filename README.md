@@ -45,7 +45,7 @@ Refuses the primary worktree, the one this session runs in, and locked ones outr
 
 Creating a worktree used to be half the job. pi binds `read`, `edit`, `bash` and `@` completion to the session's working directory, and a session cannot change its own — so the worktree existed, and everything you had just discussed stayed in the terminal you were in.
 
-`/worktree enter <branch|path>` forks the current session into the worktree and switches to it. The conversation comes along, the tools rebind, and the branch you were reading about is the branch you are now in. `/worktree exit` is symmetric: it forks the *current* conversation back into the main checkout, so everything you discussed inside the worktree comes home with you (it does not rewind to the moment you entered). `/worktree create <branch> --enter` does both in one step.
+`/worktree enter <branch|path>` forks the current session into the worktree and switches to it. The conversation comes along, the tools rebind, and the branch you were reading about is the branch you are now in. `/worktree exit` is symmetric: it forks the *current* conversation back into the main checkout, so everything you discussed inside the worktree comes home with you (it does not rewind to the moment you entered). `/worktree create <branch>` creates and enters the worktree in one step.
 
 Two refusals, each with a different fix:
 
@@ -57,7 +57,7 @@ Session switching is a user command, so **the agent cannot move itself**. That i
 ## Command
 
 `/worktree` — the same list as `worktree_list`.
-`/worktree create <branch> [base] [--enter]` — create, optionally entering it.
+`/worktree create <branch> [base]` — create and enter a worktree.
 `/worktree enter <branch|path>` — take the conversation into a worktree.
 `/worktree exit` — carry the conversation back to the main checkout.
 `/worktree remove <branch|path>` — remove, with the same rails as the tool.

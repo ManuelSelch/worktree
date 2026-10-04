@@ -16,10 +16,6 @@ const SUBCOMMANDS: AutocompleteItem[] = [
   { value: "remove", label: "remove — remove a worktree" },
 ];
 
-const CREATE_OPTIONS: AutocompleteItem[] = [
-  { value: "--enter", label: "--enter — enter the worktree after creating it" },
-];
-
 function getArgumentCompletions(prefix: string): AutocompleteItem[] | null {
   const trimmed = prefix.trimStart();
   const firstSpace = trimmed.search(/\s/);
@@ -27,16 +23,6 @@ function getArgumentCompletions(prefix: string): AutocompleteItem[] | null {
   // Complete the subcommand while the first argument is being typed.
   if (firstSpace === -1) {
     const matches = SUBCOMMANDS.filter((item) => item.value.startsWith(trimmed));
-    return matches.length > 0 ? matches : null;
-  }
-
-  const subcommand = trimmed.slice(0, firstSpace).toLowerCase();
-  const current = trimmed.slice(firstSpace).trimStart();
-
-  // The only fixed positional option currently available is --enter for create.
-  // Branches, refs, and paths are intentionally not guessed here.
-  if (subcommand === "create" && current.startsWith("-")) {
-    const matches = CREATE_OPTIONS.filter((item) => item.value.startsWith(current));
     return matches.length > 0 ? matches : null;
   }
 
@@ -56,7 +42,7 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
         if (rest === "--help" || rest === "-h") {
           ctx.ui.notify(
             `Usage: /worktree ${route || "[subcommand]"}\n` +
-              (route === "create" ? "create <branch> [base] (enters automatically; --enter is accepted for compatibility)" :
+              (route === "create" ? "create <branch> [base] (enters automatically)" :
                 route === "enter" ? "enter <branch|path>" :
                   route === "remove" ? "remove <branch|path>" :
                     route === "merge" ? "merge <branch>" :
@@ -74,7 +60,7 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
               [
                 "Usage: /worktree <subcommand>",
                 "/worktree                         list worktrees",
-                "/worktree create <branch> [base] (enters automatically; --enter is optional compatibility syntax)",
+                "/worktree create <branch> [base] (enters automatically)",
                 "/worktree enter <branch|path>",
                 "/worktree exit",
                 "/worktree remove <branch|path>",
@@ -89,16 +75,14 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
             return;
           case "create": {
             const words = rest.split(/\s+/).filter(Boolean);
-            // Creating a worktree always enters it. Keep accepting --enter as
-            // a backwards-compatible no-op for older command invocations.
-            const positional = words.filter((word) => word !== "--enter");
+            const positional = words;
             const [arg, base] = positional;
             if (!arg) {
-              ctx.ui.notify("Usage: /worktree create <branch> [base] [--enter]", "warning");
+              ctx.ui.notify("Usage: /worktree create <branch> [base]", "warning");
               return;
             }
-            if (positional.length > 2 || words.some((word) => word.startsWith("-") && word !== "--enter")) {
-              ctx.ui.notify("Usage: /worktree create <branch> [base] [--enter]", "warning");
+            if (positional.length > 2 || words.some((word) => word.startsWith("-"))) {
+              ctx.ui.notify("Usage: /worktree create <branch> [base]", "warning");
               return;
             }
             if (!validBranchName(arg)) {
