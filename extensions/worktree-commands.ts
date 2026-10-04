@@ -10,7 +10,7 @@ const SUBCOMMANDS: AutocompleteItem[] = [
   { value: "enter", label: "enter — enter an existing worktree" },
   { value: "exit", label: "exit — return to the primary checkout" },
   { value: "list", label: "list — show all worktrees" },
-  { value: "merge", label: "merge — merge a worktree into the primary branch" },
+  { value: "merge", label: "merge — merge the current or named worktree into the primary branch" },
   { value: "prune", label: "prune — remove stale worktree metadata" },
   { value: "remove", label: "remove — remove a worktree" },
 ];
@@ -73,9 +73,15 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
             await exitWorktree(controller, ctx);
             return;
           case "merge": {
-            if (!rest) return ctx.ui.notify("Usage: /worktree merge <branch>", "warning");
+            const branch = rest || controller.currentBranch(ctx);
+            if (!branch) {
+              return ctx.ui.notify(
+                "This session is not inside a named worktree. Usage: /worktree merge <branch>",
+                "warning",
+              );
+            }
 
-            const result = await controller.merge(ctx, rest);
+            const result = await controller.merge(ctx, branch);
             ctx.ui.notify(result.text, "info");
             return;
           }

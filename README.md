@@ -61,7 +61,7 @@ Session switching is a user command, so **the agent cannot move itself**. That i
 `/worktree enter <branch|path>` — take the conversation into a worktree.
 `/worktree exit` — carry the conversation back to the main checkout.
 `/worktree remove <branch|path>` — remove, with the same rails as the tool.
-`/worktree merge <branch>` — merge back and clean up.
+`/worktree merge [branch]` — merge back and clean up; without a branch, merges the current session worktree.
 `/worktree prune` — drop administrative records for worktrees whose directories are gone.
 
 Everything after the route is taken whole, so paths with spaces work.
