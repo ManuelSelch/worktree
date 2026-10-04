@@ -122,7 +122,7 @@ test("notes say where you are and how to get back", () => {
   const entered = enteredNote(state);
   assert.match(entered, /D:\/repo-wt\/feature/);
   assert.match(entered, /on feature/);
-  assert.match(entered, /\/worktree-exit/);
+  assert.match(entered, /\/worktree exit/);
 
   // Leaving a worktree entering created must not imply it was cleaned up.
   assert.match(exitNote(state), /still there/);

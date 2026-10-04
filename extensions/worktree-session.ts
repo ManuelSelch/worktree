@@ -2,7 +2,8 @@ import {
   SessionManager,
   type ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import {
   WORKTREE_SESSION_ENTRY,
   enteredNote,
@@ -12,6 +13,23 @@ import {
   type WorktreeSession,
 } from "../src/enter.ts";
 import type { WorktreeController } from "./worktree-controller.ts";
+
+/**
+ * SessionManager intentionally delays writing a new session until an
+ * assistant message exists. That is correct for normal /new, but a session
+ * switch needs a readable file immediately. Flush the header and custom
+ * metadata before asking Pi to open the replacement session.
+ */
+function persistReplacementSession(session: SessionManager): string {
+  const file = session.getSessionFile();
+  if (!file) throw new Error("the replacement session has no file");
+  mkdirSync(dirname(file), { recursive: true });
+  const header = session.getHeader();
+  if (!header) throw new Error("the replacement session has no header");
+  const entries = [header, ...session.getEntries()];
+  writeFileSync(file, entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
+  return file;
+}
 
 export async function enterWorktree(
   controller: WorktreeController,
@@ -63,7 +81,9 @@ export async function enterWorktree(
       throw new Error("the forked session has no file");
     }
     replacement.appendCustomEntry(WORKTREE_SESSION_ENTRY, state);
-    const replacementFile = replacement.getSessionFile();
+    const replacementFile = plan.mode === "new"
+      ? persistReplacementSession(replacement)
+      : replacement.getSessionFile();
     if (!replacementFile) throw new Error("the replacement session has no file");
     const { cancelled } = await ctx.switchSession(replacementFile, {
       withSession: async (next) => {

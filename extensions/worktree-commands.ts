@@ -6,7 +6,7 @@ import { validBaseRef, validBranchName } from "../src/parse.ts";
 import { pruneWorktrees } from "../src/git.ts";
 
 const SUBCOMMANDS: AutocompleteItem[] = [
-  { value: "create", label: "create — create a worktree" },
+  { value: "create", label: "create — create and enter a worktree" },
   { value: "enter", label: "enter — enter an existing worktree" },
   { value: "exit", label: "exit — return to the primary checkout" },
   { value: "help", label: "help — show worktree command usage" },
@@ -56,7 +56,7 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
         if (rest === "--help" || rest === "-h") {
           ctx.ui.notify(
             `Usage: /worktree ${route || "[subcommand]"}\n` +
-              (route === "create" ? "create <branch> [base] [--enter]" :
+              (route === "create" ? "create <branch> [base] (enters automatically; --enter is accepted for compatibility)" :
                 route === "enter" ? "enter <branch|path>" :
                   route === "remove" ? "remove <branch|path>" :
                     route === "merge" ? "merge <branch>" :
@@ -74,7 +74,7 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
               [
                 "Usage: /worktree <subcommand>",
                 "/worktree                         list worktrees",
-                "/worktree create <branch> [base] [--enter]",
+                "/worktree create <branch> [base] (enters automatically; --enter is optional compatibility syntax)",
                 "/worktree enter <branch|path>",
                 "/worktree exit",
                 "/worktree remove <branch|path>",
@@ -89,7 +89,8 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
             return;
           case "create": {
             const words = rest.split(/\s+/).filter(Boolean);
-            const enterAfter = words.includes("--enter");
+            // Creating a worktree always enters it. Keep accepting --enter as
+            // a backwards-compatible no-op for older command invocations.
             const positional = words.filter((word) => word !== "--enter");
             const [arg, base] = positional;
             if (!arg) {
@@ -113,16 +114,8 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
               ctx.ui.notify(result.message, "error");
               return;
             }
-            if (enterAfter) {
-              ctx.ui.notify(`Worktree ready: ${result.path}`, "info");
-              await enterWorktree(controller, ctx, arg, true);
-            } else {
-              ctx.ui.notify(
-                `Worktree ready: ${result.path}\n` +
-                  `/worktree enter ${arg} takes this conversation there, or open it separately with: cd "${result.path}" && pi`,
-                "info",
-              );
-            }
+            ctx.ui.notify(`Worktree ready: ${result.path}`, "info");
+            await enterWorktree(controller, ctx, arg, true);
             return;
           }
           case "enter":
