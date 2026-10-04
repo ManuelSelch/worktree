@@ -1,6 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   assessRemoval,
+  formatCompactWorktrees,
   formatWorktrees,
   isInside,
   resolveWorktree,
@@ -23,6 +24,7 @@ export interface WorktreeController {
   requireRepo(ctx: UiContext): string;
   list(cwd: string): WorktreeInfo[];
   listText(ctx: UiContext): string;
+  compactListText(ctx: UiContext): string;
   resolve(ctx: UiContext, target: string): WorktreeInfo | null;
   currentBranch(ctx: UiContext): string | null;
   create(ctx: UiContext, branch: string, base?: string, signal?: AbortSignal): ReturnType<typeof createWorktree>;
@@ -41,10 +43,18 @@ export function createWorktreeController(): WorktreeController {
     return listWorktrees(cwd);
   }
 
+  function dirtyPaths(worktrees: WorktreeInfo[]): Set<string> {
+    return new Set(worktrees.filter((worktree) => isDirty(worktree.path)).map((worktree) => worktree.path));
+  }
+
   function listText(ctx: UiContext): string {
     const worktrees = list(ctx.cwd);
-    const dirty = new Set(worktrees.filter((w) => isDirty(w.path)).map((w) => w.path));
-    return formatWorktrees(worktrees, dirty);
+    return formatWorktrees(worktrees, dirtyPaths(worktrees));
+  }
+
+  function compactListText(ctx: UiContext): string {
+    const worktrees = list(ctx.cwd);
+    return formatCompactWorktrees(worktrees, dirtyPaths(worktrees), ctx.cwd);
   }
 
   function resolve(ctx: UiContext, target: string): WorktreeInfo | null {
@@ -99,6 +109,6 @@ export function createWorktreeController(): WorktreeController {
     return createWorktree(ctx.cwd, branch, base, { signal });
   }
 
-  return { requireRepo, list, listText, resolve, currentBranch, create, merge, remove };
+  return { requireRepo, list, listText, compactListText, resolve, currentBranch, create, merge, remove };
 }
 

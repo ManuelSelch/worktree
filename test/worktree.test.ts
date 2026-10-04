@@ -9,6 +9,7 @@ import {
   branchToDirName,
   isInside,
   resolveWorktree,
+  formatCompactWorktrees,
   formatWorktrees,
   parseWorktreeList,
   validBaseRef,
@@ -112,13 +113,20 @@ test("assessRemoval: hard refusals vs confirmable dirty", () => {
   assert.ok(!dirty.ok && dirty.confirmable);
 });
 
-test("formatWorktrees renders flags", () => {
+test("formatWorktrees renders flags and paths", () => {
   const text = formatWorktrees(parseWorktreeList(PORCELAIN), new Set(["/repo/wt-feature"]));
   assert.ok(text.includes("primary"));
   assert.ok(text.includes("locked, dirty") || text.includes("dirty"));
   assert.ok(text.includes("feature/x"));
   assert.match(text, /primary\)\n\n\/repo\/wt-feature/);
   assert.equal(formatWorktrees([], new Set()), "No worktrees.");
+});
+
+test("formatCompactWorktrees marks the active worktree without paths", () => {
+  const text = formatCompactWorktrees(parseWorktreeList(PORCELAIN), new Set(["/repo/wt-feature"]), "/repo/wt-feature/src");
+  assert.equal(text, "  main (primary)\n* feature/x (active, locked, dirty)\n  fedcba09 (detached, prunable)");
+  assert.ok(!text.includes("/repo/"));
+  assert.equal(formatCompactWorktrees([], new Set(), "/repo"), "No worktrees.");
 });
 
 // ── Integration against a real git repo ──────────────────────────────────

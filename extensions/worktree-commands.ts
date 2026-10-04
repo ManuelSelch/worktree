@@ -43,7 +43,7 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
         controller.requireRepo(ctx);
         switch (route || "list") {
           case "list":
-            ctx.ui.notify(controller.listText(ctx), "info");
+            ctx.ui.notify(controller.compactListText(ctx), "info");
             return;
           case "create": {
             const words = rest.split(/\s+/).filter(Boolean);

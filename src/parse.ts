@@ -159,21 +159,46 @@ export function assessRemoval(
   return { ok: reasons.length === 0, reasons, confirmable: !hard && dirty };
 }
 
+function worktreeFlags(worktree: WorktreeInfo, dirtyPaths: Set<string>): string {
+  return [
+    worktree.primary ? "primary" : "",
+    worktree.detached ? "detached" : "",
+    worktree.locked ? "locked" : "",
+    worktree.prunable ? "prunable" : "",
+    dirtyPaths.has(worktree.path) ? "dirty" : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function worktreeLabel(worktree: WorktreeInfo): string {
+  return worktree.branch ?? worktree.head.slice(0, 8);
+}
+
+/** Detailed listing for tools and callers that need paths. */
 export function formatWorktrees(worktrees: WorktreeInfo[], dirtyPaths: Set<string>): string {
   if (worktrees.length === 0) return "No worktrees.";
   return worktrees
-    .map((w) => {
-      const flags = [
-        w.primary ? "primary" : "",
-        w.detached ? "detached" : "",
-        w.locked ? "locked" : "",
-        w.prunable ? "prunable" : "",
-        dirtyPaths.has(w.path) ? "dirty" : "",
-      ]
-        .filter(Boolean)
-        .join(", ");
-      const label = w.branch ?? w.head.slice(0, 8);
-      return `${w.path}\n  ${label}${flags ? ` (${flags})` : ""}`;
+    .map((worktree) => {
+      const flags = worktreeFlags(worktree, dirtyPaths);
+      return `${worktree.path}\n  ${worktreeLabel(worktree)}${flags ? ` (${flags})` : ""}`;
     })
     .join("\n\n");
+}
+
+/** Compact listing for the interactive command; paths are intentionally hidden. */
+export function formatCompactWorktrees(
+  worktrees: WorktreeInfo[],
+  dirtyPaths: Set<string>,
+  cwd: string,
+): string {
+  if (worktrees.length === 0) return "No worktrees.";
+  return worktrees
+    .map((worktree) => {
+      const flags = worktreeFlags(worktree, dirtyPaths);
+      const active = isInside(cwd, worktree.path);
+      const labels = [active ? "active" : "", flags].filter(Boolean).join(", ");
+      return `${active ? "*" : " "} ${worktreeLabel(worktree)}${labels ? ` (${labels})` : ""}`;
+    })
+    .join("\n");
 }
