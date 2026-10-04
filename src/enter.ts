@@ -129,19 +129,12 @@ export function planEnter(
 }
 
 export function enteredNote(session: WorktreeSession): string {
-  const branch = session.branch ? ` on ${session.branch}` : "";
-  return [
-    `Entered worktree ${session.path}${branch}.`,
-    "read, edit, bash and @ completion are rooted here now; the conversation came with you.",
-    "/worktree exit returns to the primary checkout.",
-  ].join(" ");
+  const target = session.branch ?? session.path;
+  return `Entered ${target}. Use /worktree exit to return.`;
 }
 
 export function exitNote(session: WorktreeSession): string {
-  return [
-    `Left the worktree at ${session.path}; the conversation came back with you.`,
-    session.created
-      ? "It was created by entering, and is still there — /worktree merge merges it, and /worktree remove can remove it."
-      : "It is untouched.",
-  ].join(" ");
+  return session.created
+    ? `Returned to primary. Worktree kept: ${session.branch ?? session.path}.`
+    : "Returned to the primary checkout.";
 }

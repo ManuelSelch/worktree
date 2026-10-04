@@ -60,7 +60,6 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
             const result = await controller.create(ctx, arg, base);
             if (!result.ok) return ctx.ui.notify(result.message, "error");
 
-            ctx.ui.notify(`Worktree ready: ${result.path}`, "info");
             await enterWorktree(controller, ctx, arg, true);
             return;
           }

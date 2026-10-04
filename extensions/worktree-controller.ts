@@ -92,7 +92,7 @@ export function createWorktreeController(): WorktreeController {
 
     const result = await removeWorktree(ctx.cwd, target.path, dirty, { signal });
     if (!result.ok) throw new Error(result.output);
-    return `Removed worktree ${target.path}. Branch "${target.branch ?? "(detached)"}" was kept.`;
+    return `Removed ${target.branch ?? target.path}. Branch kept.`;
   }
 
   async function create(ctx: UiContext, branch: string, base?: string, signal?: AbortSignal) {

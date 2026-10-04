@@ -71,11 +71,7 @@ export async function runMerge(
 
   if (inside) {
     return {
-      text:
-        `Merged "${sourceBranch}" into ${mergedInto}.\n` +
-        `This session is rooted in the worktree, so it was KEPT (removing it would delete this ` +
-        `session's own directory). Run /worktree exit, then worktree_remove branch="${sourceBranch}" ` +
-        `(or /worktree remove ${sourceBranch}) to drop it.`,
+      text: `Merged ${sourceBranch} into ${mergedInto}. Worktree kept; exit first to remove it.`,
       branch: sourceBranch,
       removed: false,
       merged: true,
@@ -87,7 +83,7 @@ export async function runMerge(
     ? `Worktree ${source.path} removed (branch kept).`
     : `Merge done, but removing the worktree failed: ${removal.output}`;
   return {
-    text: `Merged "${sourceBranch}" into ${mergedInto}.\n${cleanup}`,
+    text: `Merged ${sourceBranch} into ${mergedInto}. ${removal.ok ? "Removed the worktree." : cleanup}`,
     branch: sourceBranch,
     removed: removal.ok,
     merged: true,

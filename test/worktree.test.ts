@@ -310,7 +310,7 @@ test("v0.3 runMerge keeps the worktree when the session is rooted inside it", as
   assert.ok(calls.includes("merge"), "merge still happens");
   assert.ok(!calls.includes("remove"), "must not remove the worktree it is rooted in");
   assert.ok(calls.some((c) => c.startsWith("confirm:") && c.includes("keep")), "dialog says keep");
-  assert.match(outcome.text, /\/worktree exit/);
+  assert.equal(outcome.text, "Merged feature into main. Worktree kept; exit first to remove it.");
 });
 
 test("v0.3 runMerge removes the worktree when merging from outside it", async () => {
@@ -318,6 +318,7 @@ test("v0.3 runMerge removes the worktree when merging from outside it", async ()
   const outcome = await runMerge("/repo", MERGE_TREES, "feature", deps);
   assert.equal(outcome.merged, true);
   assert.equal(outcome.removed, true);
+  assert.equal(outcome.text, "Merged feature into main. Removed the worktree.");
   assert.ok(calls.includes("remove"), "worktree removed when we are not inside it");
   assert.ok(calls.some((c) => c.startsWith("confirm:") && c.includes("remove")), "dialog says remove");
 });

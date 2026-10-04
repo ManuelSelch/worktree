@@ -109,7 +109,7 @@ test("a 'left' marker clears the state so a second /worktree exit is a no-op", (
   assert.equal(reentered?.created, false);
 });
 
-test("notes say where you are and how to get back", () => {
+test("notes identify the worktree and the way back", () => {
   const state = {
     path: "D:/repo-wt/feature",
     branch: "feature",
@@ -120,11 +120,9 @@ test("notes say where you are and how to get back", () => {
     enteredAt: 0,
   };
   const entered = enteredNote(state);
-  assert.match(entered, /D:\/repo-wt\/feature/);
-  assert.match(entered, /on feature/);
-  assert.match(entered, /\/worktree exit/);
+  assert.equal(entered, "Entered feature. Use /worktree exit to return.");
 
   // Leaving a worktree entering created must not imply it was cleaned up.
-  assert.match(exitNote(state), /still there/);
-  assert.match(exitNote({ ...state, created: false }), /untouched/);
+  assert.equal(exitNote(state), "Returned to primary. Worktree kept: feature.");
+  assert.equal(exitNote({ ...state, created: false }), "Returned to the primary checkout.");
 });
