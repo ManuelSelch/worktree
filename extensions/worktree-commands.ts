@@ -48,51 +48,32 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
             const positional = words;
             const [arg, base] = positional;
             if (!arg) return ctx.ui.notify("Usage: /worktree create <branch> [base]", "warning");
-            if (positional.length > 2 || words.some((word) => word.startsWith("-"))) {
-              ctx.ui.notify("Usage: /worktree create <branch> [base]", "warning");
-              return;
-            }
-            if (!validBranchName(arg)) {
-              ctx.ui.notify(`Invalid branch name "${arg}".`, "warning");
-              return;
-            }
-            if (base !== undefined && !validBaseRef(base)) {
-              ctx.ui.notify(`Invalid base ref "${base}".`, "warning");
-              return;
-            }
+            if (positional.length > 2 || words.some((word) => word.startsWith("-")))
+              return ctx.ui.notify("Usage: /worktree create <branch> [base]", "warning");
+            if (!validBranchName(arg)) return ctx.ui.notify(`Invalid branch name "${arg}".`, "warning");
+            if (base !== undefined && !validBaseRef(base))
+              return ctx.ui.notify(`Invalid base ref "${base}".`, "warning");
             const result = await controller.create(ctx, arg, base);
-            if (!result.ok) {
-              ctx.ui.notify(result.message, "error");
-              return;
-            }
+            if (!result.ok) return ctx.ui.notify(result.message, "error");
             ctx.ui.notify(`Worktree ready: ${result.path}`, "info");
             await enterWorktree(controller, ctx, arg, true);
             return;
           }
           case "enter":
-            if (!rest) {
-              ctx.ui.notify("Usage: /worktree enter <branch|path>", "warning");
-              return;
-            }
+            if (!rest) return ctx.ui.notify("Usage: /worktree enter <branch|path>", "warning");
             await enterWorktree(controller, ctx, rest);
             return;
           case "exit":
             await exitWorktree(controller, ctx);
             return;
           case "merge": {
-            if (!rest) {
-              ctx.ui.notify("Usage: /worktree merge <branch>", "warning");
-              return;
-            }
+            if (!rest) return ctx.ui.notify("Usage: /worktree merge <branch>", "warning");
             const result = await controller.merge(ctx, rest);
             ctx.ui.notify(result.text, "info");
             return;
           }
           case "remove": {
-            if (!rest) {
-              ctx.ui.notify("Usage: /worktree remove <branch|path>", "warning");
-              return;
-            }
+            if (!rest) return ctx.ui.notify("Usage: /worktree remove <branch|path>", "warning");
             ctx.ui.notify(await controller.remove(ctx, rest), "info");
             return;
           }
