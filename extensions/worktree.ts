@@ -238,6 +238,30 @@ export default function worktree(pi: ExtensionAPI) {
     },
   });
 
+  pi.registerCommand("worktree-enter", {
+    description: "Enter an existing worktree",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+      const target = (args ?? "").trim();
+      if (!target) {
+        ctx.ui.notify("Usage: /worktree-enter <branch|path>", "warning");
+        return;
+      }
+      await enterWorktree(ctx, target);
+    },
+  });
+
+  pi.registerCommand("worktree-exit", {
+    description: "Return to the primary checkout without removing the worktree",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) return;
+      await exitWorktree(ctx);
+    },
+  });
+
+  // /worktree without arguments is the canonical newline-separated list
+  // command. The routed legacy forms below remain available for now.
+
   // ── Tools ────────────────────────────────────────────────────────────
 
   pi.registerTool({

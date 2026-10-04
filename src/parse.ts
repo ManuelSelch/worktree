@@ -175,5 +175,5 @@ export function formatWorktrees(worktrees: WorktreeInfo[], dirtyPaths: Set<strin
       const label = w.branch ?? w.head.slice(0, 8);
       return `${w.path}\n  ${label}${flags ? ` (${flags})` : ""}`;
     })
-    .join("\n");
+    .join("\n\n");
 }

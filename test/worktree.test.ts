@@ -117,6 +117,7 @@ test("formatWorktrees renders flags", () => {
   assert.ok(text.includes("primary"));
   assert.ok(text.includes("locked, dirty") || text.includes("dirty"));
   assert.ok(text.includes("feature/x"));
+  assert.match(text, /primary\)\n\n\/repo\/wt-feature/);
   assert.equal(formatWorktrees([], new Set()), "No worktrees.");
 });
 
