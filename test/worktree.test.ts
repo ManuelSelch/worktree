@@ -26,6 +26,7 @@ import {
   removeWorktree,
 } from "../src/git.ts";
 import { runMerge } from "../src/merge.ts";
+import { completeWorktreeArguments } from "../src/completion.ts";
 
 // ── Pure parsing/validation ──────────────────────────────────────────────
 
@@ -120,6 +121,19 @@ test("formatWorktrees renders flags and paths", () => {
   assert.ok(text.includes("feature/x"));
   assert.match(text, /primary\)\n\n\/repo\/wt-feature/);
   assert.equal(formatWorktrees([], new Set()), "No worktrees.");
+});
+
+test("worktree command completion offers branch targets after enter, merge, and remove", () => {
+  const worktrees = parseWorktreeList(PORCELAIN);
+
+  assert.deepEqual(
+    completeWorktreeArguments("remove ", worktrees),
+    [{ value: "main", label: "main" }, { value: "feature/x", label: "feature/x" }],
+  );
+  assert.deepEqual(completeWorktreeArguments("merge fe", worktrees), [{ value: "feature/x", label: "feature/x" }]);
+  assert.deepEqual(completeWorktreeArguments("enter feature/x ", worktrees), null);
+  assert.deepEqual(completeWorktreeArguments("create ", worktrees), null);
+  assert.deepEqual(completeWorktreeArguments("rem", worktrees), [{ value: "remove", label: "remove — remove a worktree" }]);
 });
 
 test("formatCompactWorktrees marks the active worktree without paths", () => {

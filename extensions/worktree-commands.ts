@@ -1,39 +1,31 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import { enterWorktree, exitWorktree } from "./worktree-session.ts";
 import type { WorktreeController } from "./worktree-controller.ts";
 import { validBaseRef, validBranchName } from "../src/parse.ts";
 import { pruneWorktrees } from "../src/git.ts";
+import { completeWorktreeArguments } from "../src/completion.ts";
+import type { AutocompleteItem } from "@earendil-works/pi-tui";
 
-const SUBCOMMANDS: AutocompleteItem[] = [
-  { value: "create", label: "create — create and enter a worktree" },
-  { value: "enter", label: "enter — enter an existing worktree" },
-  { value: "exit", label: "exit — return to the primary checkout" },
-  { value: "list", label: "list — show all worktrees" },
-  { value: "merge", label: "merge — merge the current or named worktree into the primary branch" },
-  { value: "prune", label: "prune — remove stale worktree metadata" },
-  { value: "remove", label: "remove — remove a worktree" },
-];
-
-function getArgumentCompletions(prefix: string): AutocompleteItem[] | null {
-  const trimmed = prefix.trimStart();
-  const firstSpace = trimmed.search(/\s/);
-
-  // Complete the subcommand while the first argument is being typed.
-  if (firstSpace === -1) {
-    const matches = SUBCOMMANDS.filter((item) => item.value.startsWith(trimmed));
-    return matches.length > 0 ? matches : null;
-  }
-
-  return null;
+function getArgumentCompletions(
+  prefix: string,
+  controller: WorktreeController,
+  cwd: string,
+): AutocompleteItem[] | null {
+  // The command completion API currently supplies only the argument prefix,
+  // not an ExtensionContext. The registered command keeps this cwd in sync
+  // whenever it handles a command; process.cwd() covers the initial state.
+  return completeWorktreeArguments(prefix, controller.list(cwd));
 }
 
 export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeController): void {
+  let completionCwd = process.cwd();
+
   pi.registerCommand("worktree", {
     description: "Manage git worktrees; type /worktree for subcommand completion",
-    getArgumentCompletions,
+    getArgumentCompletions: (prefix) => getArgumentCompletions(prefix, controller, completionCwd),
     handler: async (args, ctx) => {
       if (!ctx.hasUI) return;
+      completionCwd = ctx.cwd;
 
       const text = (args ?? "").trim();
       const route = (text.split(/\s+/)[0] ?? "").toLowerCase();
