@@ -86,7 +86,7 @@ export async function exitWorktree(
     return;
   }
   if (typeof ctx.switchSession !== "function") {
-    ctx.ui.notify("This pi build cannot switch sessions, so /worktree-exit is unavailable.", "error");
+    ctx.ui.notify("This pi build cannot switch sessions, so /worktree exit is unavailable.", "error");
     return;
   }
 

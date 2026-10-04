@@ -115,7 +115,7 @@ export function planEnter(
   if (!target) {
     return {
       kind: "not-found",
-      message: "No worktree matches that. /worktree shows them; /worktree-create <branch> makes one.",
+      message: "No worktree matches that. /worktree shows them; /worktree create <branch> makes one.",
     };
   }
   if (samePath(cwd, target.path)) {
@@ -133,7 +133,7 @@ export function enteredNote(session: WorktreeSession): string {
   return [
     `Entered worktree ${session.path}${branch}.`,
     "read, edit, bash and @ completion are rooted here now; the conversation came with you.",
-    "/worktree-exit returns to the primary checkout.",
+    "/worktree exit returns to the primary checkout.",
   ].join(" ");
 }
 
@@ -141,7 +141,7 @@ export function exitNote(session: WorktreeSession): string {
   return [
     `Left the worktree at ${session.path}; the conversation came back with you.`,
     session.created
-      ? "It was created by entering, and is still there — /worktree-merge merges it, and worktree_remove can remove it."
+      ? "It was created by entering, and is still there — /worktree merge merges it, and /worktree remove can remove it."
       : "It is untouched.",
   ].join(" ");
 }

@@ -46,7 +46,7 @@ export function registerWorktreeTools(pi: ExtensionAPI, controller: WorktreeCont
           type: "text",
           text: [
             `Worktree ready at ${result.path} (${result.message} base: ${result.base}).`,
-            `Your tools still point at the current checkout. The user can run /worktree-enter ${branch} ` +
+            `Your tools still point at the current checkout. The user can run /worktree enter ${branch} ` +
               `to bring this conversation into the worktree, or open it separately with: cd "${result.path}" && pi`,
             `When the work is done: worktree_merge branch="${branch}" merges it back and cleans up.`,
           ].join("\n"),
