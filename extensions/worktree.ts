@@ -35,7 +35,7 @@ import {
   removeWorktree,
   repoToplevel,
 } from "../src/git.ts";
-import { assessRemoval, formatWorktrees, resolveWorktree, validBaseRef, validBranchName } from "../src/parse.ts";
+import { assessRemoval, formatWorktrees, isInside, resolveWorktree, validBaseRef, validBranchName } from "../src/parse.ts";
 import { runMerge } from "../src/merge.ts";
 import { withUiLock } from "../src/ui-lock.ts";
 import {
@@ -65,6 +65,11 @@ export default function worktree(pi: ExtensionAPI) {
 
   function resolveTarget(ctx: UiContext, target: string) {
     return resolveWorktree(listWorktrees(ctx.cwd), target);
+  }
+
+  function currentWorktreeBranch(ctx: UiContext): string | null {
+    const current = listWorktrees(ctx.cwd).find((w) => isInside(ctx.cwd, w.path));
+    return current?.branch ?? null;
   }
 
   /**
@@ -259,6 +264,25 @@ export default function worktree(pi: ExtensionAPI) {
     },
   });
 
+  pi.registerCommand("worktree-merge", {
+    description: "Merge the current or named worktree into the primary branch",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+      const requested = (args ?? "").trim();
+      const branch = requested || currentWorktreeBranch(ctx);
+      if (!branch) {
+        ctx.ui.notify("This session is not inside a named worktree. Usage: /worktree-merge [name]", "warning");
+        return;
+      }
+      try {
+        const result = await mergeWorktree(ctx, branch);
+        ctx.ui.notify(result.text, "info");
+      } catch (err) {
+        ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
+      }
+    },
+  });
+
   // /worktree without arguments is the canonical newline-separated list
   // command. The routed legacy forms below remain available for now.
 
@@ -378,14 +402,18 @@ export default function worktree(pi: ExtensionAPI) {
     label: "Merge worktree",
     promptSnippet: "Merge a worktree's branch back and clean it up",
     description:
-      "Merge a worktree's branch into the primary worktree's current branch (with the user's " +
-      "confirmation), then remove the worktree on success. Conflicting merges abort cleanly and " +
-      "report — nothing is left half-merged.",
+      "Merge a named worktree branch, or the current worktree when branch is omitted, into the " +
+      "primary worktree's current branch (with the user's confirmation), then remove the worktree on " +
+      "success when it is not the active worktree. Conflicting merges abort cleanly and report — " +
+      "nothing is left half-merged.",
     parameters: Type.Object({
-      branch: Type.String({ description: "Branch of the worktree to merge back" }),
+      branch: Type.Optional(Type.String({ description: "Branch of the worktree to merge back; defaults to the current worktree" })),
     }),
-    async execute(_id, params: { branch: string }, signal, _onUpdate, ctx) {
-      const result = await mergeWorktree(ctx as UiContext, params.branch, signal);
+    async execute(_id, params: { branch?: string }, signal, _onUpdate, ctx) {
+      const uiCtx = ctx as UiContext;
+      const branch = params.branch?.trim() || currentWorktreeBranch(uiCtx);
+      if (!branch) throw new Error("The current session is not inside a named worktree; provide a branch.");
+      const result = await mergeWorktree(uiCtx, branch, signal);
       return {
         content: [{ type: "text", text: result.text }],
         details: { branch: result.branch, merged: result.merged, removed: result.removed },
