@@ -9,6 +9,7 @@ export const WORKTREE_SUBCOMMANDS: AutocompleteItem[] = [
   { value: "merge", label: "merge — merge the current or named worktree into the primary branch" },
   { value: "prune", label: "prune — remove stale worktree metadata" },
   { value: "remove", label: "remove — remove a worktree" },
+  { value: "update", label: "update — merge the primary branch into the current worktree" },
 ];
 
 /** Complete a worktree target using the branches currently checked out as worktrees. */
