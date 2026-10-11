@@ -29,6 +29,7 @@ export interface WorktreeController {
   currentBranch(ctx: UiContext): string | null;
   create(ctx: UiContext, branch: string, base?: string, signal?: AbortSignal): ReturnType<typeof createWorktree>;
   merge(ctx: UiContext, branch: string, signal?: AbortSignal): Promise<MergeOutcome>;
+  update(ctx: UiContext, signal?: AbortSignal): Promise<string>;
   remove(ctx: UiContext, targetName: string, signal?: AbortSignal): Promise<string>;
 }
 
@@ -77,6 +78,29 @@ export function createWorktreeController(): WorktreeController {
     });
   }
 
+  async function update(ctx: UiContext, signal?: AbortSignal): Promise<string> {
+    requireRepo(ctx);
+    const worktrees = list(ctx.cwd);
+    const primary = worktrees.find((worktree) => worktree.primary);
+    const current = worktrees.find((worktree) => isInside(ctx.cwd, worktree.path));
+    if (!primary?.branch) throw new Error("Could not determine the primary branch.");
+    if (!current?.branch || current.primary) {
+      throw new Error("/worktree update must be run inside a named feature worktree.");
+    }
+    if (isDirty(current.path)) {
+      throw new Error(`Worktree ${current.path} has uncommitted changes — commit or stash them first.`);
+    }
+    if (!ctx.hasUI) throw new Error("Updating needs the user's confirmation and no UI is available (fail-closed).");
+    const approved = await withUiLock(() => ctx.ui.confirm(
+      "Update worktree",
+      `Merge primary branch "${primary.branch}" into "${current.branch}"?`,
+    ));
+    if (!approved) return "The user declined the update.";
+    const result = await mergeBranch(current.path, primary.branch, { signal });
+    if (!result.ok) throw new Error(result.message);
+    return `Merged ${primary.branch} into ${current.branch}.`;
+  }
+
   async function remove(ctx: UiContext, targetName: string, signal?: AbortSignal): Promise<string> {
     requireRepo(ctx);
     const target = resolve(ctx, targetName.trim());
@@ -109,6 +133,6 @@ export function createWorktreeController(): WorktreeController {
     return createWorktree(ctx.cwd, branch, base, { signal });
   }
 
-  return { requireRepo, list, listText, compactListText, resolve, currentBranch, create, merge, remove };
+  return { requireRepo, list, listText, compactListText, resolve, currentBranch, create, merge, update, remove };
 }
 

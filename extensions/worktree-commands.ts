@@ -63,6 +63,10 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
           case "exit":
             await exitWorktree(controller, ctx);
             return;
+          case "update":
+            if (rest) return ctx.ui.notify("Usage: /worktree update", "warning");
+            ctx.ui.notify(await controller.update(ctx), "info");
+            return;
           case "merge": {
             const branch = rest || controller.currentBranch(ctx);
             if (!branch) {
