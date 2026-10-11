@@ -11,14 +11,14 @@ function getArgumentCompletions(
   controller: WorktreeController,
   cwd: string,
 ): AutocompleteItem[] | null {
-  // The command completion API currently supplies only the argument prefix,
-  // not an ExtensionContext. The registered command keeps this cwd in sync
-  // whenever it handles a command; process.cwd() covers the initial state.
   return completeWorktreeArguments(prefix, controller.list(cwd));
 }
 
 export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeController): void {
-  let completionCwd = process.cwd();
+  let completionCwd = "";
+  pi.on("session_start", (_event, ctx) => {
+    completionCwd = ctx.cwd;
+  });
 
   pi.registerCommand("worktree", {
     description: "Manage git worktrees; type /worktree for subcommand completion",
