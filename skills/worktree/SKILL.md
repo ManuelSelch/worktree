@@ -37,8 +37,8 @@ edits.
 6. `worktree_remove target="feature-x"` — abandon instead; dirty worktrees
    need the user's confirmation, the branch is always kept.
 7. For a batch of old feature worktrees, ask the user to run `/worktree cleanup`.
-   It opens an interactive checklist; selected local branches are deleted only
-   when explicitly checked, and Git's safe delete keeps unmerged branches.
+   It opens standard dialogs in terminal Pi or Pi Chat: skip, remove only, or
+   remove with the local branch. Git's safe delete keeps unmerged branches.
 
 ## Rules
 

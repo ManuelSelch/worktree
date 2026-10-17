@@ -12,19 +12,6 @@ export interface CleanupCandidate {
   mergedIntoPrimary: boolean;
 }
 
-export interface CleanupRowState {
-  remove: boolean;
-  deleteBranch: boolean;
-}
-
-export function initialCleanupRowState(candidate: CleanupCandidate): CleanupRowState {
-  const protectedWorktree = candidate.worktree.primary || candidate.current || candidate.worktree.locked;
-  return {
-    remove: !protectedWorktree && !candidate.dirty,
-    deleteBranch: !protectedWorktree && candidate.worktree.branch !== null && candidate.mergedIntoPrimary,
-  };
-}
-
 export interface CleanupItemResult {
   path: string;
   branch: string | null;

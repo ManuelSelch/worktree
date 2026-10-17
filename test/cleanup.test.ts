@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WorktreeInfo } from "../src/parse.ts";
-import { initialCleanupRowState, runCleanup, type CleanupCandidate, type CleanupSelection } from "../src/cleanup.ts";
+import { runCleanup, type CleanupSelection } from "../src/cleanup.ts";
 import { branchExists, deleteLocalBranch, isBranchMerged } from "../src/git.ts";
 
 function worktree(overrides: Partial<WorktreeInfo> = {}): WorktreeInfo {
@@ -56,23 +56,6 @@ function makeRepo(): string {
   run("commit", "-m", "initial");
   return dir;
 }
-
-test("initial cleanup selection protects unsafe worktrees and only defaults branch deletion for merged branches", () => {
-  const candidate = (overrides: Partial<CleanupCandidate> = {}): CleanupCandidate => ({
-    worktree: worktree(),
-    current: false,
-    dirty: false,
-    mergedIntoPrimary: true,
-    ...overrides,
-  });
-
-  assert.deepEqual(initialCleanupRowState(candidate()), { remove: true, deleteBranch: true });
-  assert.deepEqual(initialCleanupRowState(candidate({ mergedIntoPrimary: false })), { remove: true, deleteBranch: false });
-  assert.deepEqual(initialCleanupRowState(candidate({ dirty: true })), { remove: false, deleteBranch: true });
-  assert.deepEqual(initialCleanupRowState(candidate({ current: true })), { remove: false, deleteBranch: false });
-  assert.deepEqual(initialCleanupRowState(candidate({ worktree: worktree({ primary: true }) })), { remove: false, deleteBranch: false });
-  assert.deepEqual(initialCleanupRowState(candidate({ worktree: worktree({ locked: true }) })), { remove: false, deleteBranch: false });
-});
 
 test("branch deletion detects merged branches and safely refuses unmerged branches", async () => {
   const repo = makeRepo();

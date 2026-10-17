@@ -91,7 +91,6 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
           }
           case "cleanup": {
             if (rest) return ctx.ui.notify("Usage: /worktree cleanup", "warning");
-            if (ctx.mode !== "tui") return ctx.ui.notify("/worktree cleanup requires interactive TUI mode.", "error");
 
             const candidates = controller.cleanupCandidates(ctx);
             const primaryBranch = candidates.find((candidate) => candidate.worktree.primary)?.worktree.branch ?? null;
