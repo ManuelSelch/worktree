@@ -2,6 +2,7 @@ import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import type { WorktreeInfo } from "./parse.ts";
 
 export const WORKTREE_SUBCOMMANDS: AutocompleteItem[] = [
+  { value: "cleanup", label: "cleanup — interactively remove worktrees and optional local branches" },
   { value: "create", label: "create — create and enter a worktree" },
   { value: "enter", label: "enter — enter an existing worktree" },
   { value: "exit", label: "exit — return to the primary checkout" },

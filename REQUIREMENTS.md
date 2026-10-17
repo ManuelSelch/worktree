@@ -20,7 +20,7 @@ The extension must support both persisted sessions and genuinely fresh/empty Pi 
 ## 3. Non-goals
 
 - Do not implement tmux, terminal spawning, or background Pi processes.
-- Do not automatically delete Git branches after removing worktrees.
+- Do not delete Git branches during ordinary worktree removal or merging. Branch deletion is available only when the user explicitly selects it in `/worktree cleanup`.
 - Do not bypass dirty-worktree, primary-worktree, locked-worktree, or current-session safety checks.
 - Do not automatically resolve merge conflicts.
 - Do not claim that an agent tool changed the active Pi session when only a user command can switch sessions.
@@ -147,6 +147,23 @@ Expected result:
 Merged feature-login into main and removed its worktree. The branch was kept.
 ```
 
+### 4.7 `/worktree cleanup`
+
+Open an interactive TUI checklist of every worktree in the repository.
+
+Requirements:
+
+- Show branch (or detached HEAD), path, dirty state, whether the branch is merged into the primary branch, and protected state.
+- Allow selecting worktrees independently so the user can skip any entry.
+- Allow independently choosing whether to delete each selected worktree's local branch; default branch deletion on only for branches already merged into the primary branch.
+- Never allow removing the primary, active-session, or locked worktree.
+- Dirty worktrees start unselected and require a final explicit confirmation that their uncommitted changes will be lost.
+- Remove a selected worktree before attempting to delete its branch.
+- Use Git's safe local branch deletion (`git branch -d`); if Git refuses (for example, because the branch is unmerged or checked out elsewhere), keep the branch and report why.
+- Never delete remote branches.
+- Confirm the complete cleanup selection before running destructive operations.
+- Report per-worktree removal and branch-deletion outcomes, including partial failures.
+
 ## 5. Agent Tools
 
 The extension must expose tools for the agent in addition to user commands.
@@ -223,7 +240,7 @@ A `left` marker must prevent a later `/worktree-exit` from returning repeatedly 
 - Do not remove a worktree before a merge has completed successfully.
 - Ensure merge conflicts abort cleanly.
 - Leave newly created worktrees intact when session switching fails, and report how to enter them manually.
-- Preserve existing primary/current/locked/dirty worktree protections.
+- Preserve existing primary/current/locked/dirty worktree protections. `/worktree cleanup` may discard dirty work only after explicit user confirmation.
 - Use the same target resolution rules across commands and tools.
 
 ## 8. Testing Requirements
@@ -247,10 +264,11 @@ Add or update unit and integration tests covering:
 15. Merge conflicts abort without a half-merged state.
 16. Session-switch failure does not silently remove a created worktree.
 17. Agent tools return accurate paths, branch names, and operation status.
+18. Cleanup selection protects primary/current/locked worktrees, confirms dirty removal, removes before deleting branches, and keeps branches when safe deletion fails.
 
 ## 9. Documentation Requirements
 
-Update `README.md` to document:
+Update `README.md` to document `/worktree cleanup`, its per-worktree branch choice, safe deletion behavior, dirty-worktree confirmation, and the distinction from `/worktree remove`, which always keeps the branch. Also document:
 
 ```text
 /worktree
@@ -281,7 +299,8 @@ Document that merging the active worktree cannot remove its directory until the 
 8. Add named merge-and-remove behavior.
 9. Align agent tools with command behavior and result messages.
 10. Add tests for session transitions, formatting, merge safety, and cleanup.
-11. Update README and package documentation.
+11. Implement interactive `/worktree cleanup` with per-worktree local-branch selection and safe deletion.
+12. Update README and package documentation.
 
 ## 11. Open Technical Question
 

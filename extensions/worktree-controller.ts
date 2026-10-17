@@ -9,6 +9,8 @@ import {
 } from "../src/parse.ts";
 import {
   createWorktree,
+  deleteLocalBranch,
+  isBranchMerged,
   isDirty,
   listWorktrees,
   mergeBranch,
@@ -16,6 +18,7 @@ import {
   repoToplevel,
 } from "../src/git.ts";
 import { runMerge, type MergeOutcome } from "../src/merge.ts";
+import { runCleanup, type CleanupCandidate, type CleanupOutcome, type CleanupSelection } from "../src/cleanup.ts";
 import { withUiLock } from "../src/ui-lock.ts";
 
 type UiContext = ExtensionContext;
@@ -31,6 +34,13 @@ export interface WorktreeController {
   merge(ctx: UiContext, branch: string, signal?: AbortSignal): Promise<MergeOutcome>;
   update(ctx: UiContext, signal?: AbortSignal): Promise<string>;
   remove(ctx: UiContext, targetName: string, signal?: AbortSignal): Promise<string>;
+  cleanupCandidates(ctx: UiContext): CleanupCandidate[];
+  cleanup(
+    ctx: UiContext,
+    selections: CleanupSelection[],
+    approvedDirtyPaths: ReadonlySet<string>,
+    signal?: AbortSignal,
+  ): Promise<CleanupOutcome>;
 }
 
 export function createWorktreeController(): WorktreeController {
@@ -101,6 +111,34 @@ export function createWorktreeController(): WorktreeController {
     return `Merged ${primary.branch} into ${current.branch}.`;
   }
 
+  function cleanupCandidates(ctx: UiContext): CleanupCandidate[] {
+    const worktrees = list(ctx.cwd);
+    const primary = worktrees.find((worktree) => worktree.primary);
+    return worktrees.map((worktree) => ({
+      worktree,
+      current: isInside(ctx.cwd, worktree.path),
+      dirty: isDirty(worktree.path),
+      mergedIntoPrimary: Boolean(
+        worktree.branch && primary?.branch && isBranchMerged(primary.path, worktree.branch, primary.branch),
+      ),
+    }));
+  }
+
+  async function cleanup(
+    ctx: UiContext,
+    selections: CleanupSelection[],
+    approvedDirtyPaths: ReadonlySet<string>,
+    signal?: AbortSignal,
+  ): Promise<CleanupOutcome> {
+    requireRepo(ctx);
+    return runCleanup(ctx.cwd, selections, approvedDirtyPaths, {
+      listWorktrees: () => list(ctx.cwd),
+      isDirty,
+      removeWorktree: (path, force) => removeWorktree(ctx.cwd, path, force, { signal }),
+      deleteBranch: (branch) => deleteLocalBranch(ctx.cwd, branch, { signal }),
+    });
+  }
+
   async function remove(ctx: UiContext, targetName: string, signal?: AbortSignal): Promise<string> {
     requireRepo(ctx);
     const target = resolve(ctx, targetName.trim());
@@ -133,6 +171,19 @@ export function createWorktreeController(): WorktreeController {
     return createWorktree(ctx.cwd, branch, base, { signal });
   }
 
-  return { requireRepo, list, listText, compactListText, resolve, currentBranch, create, merge, update, remove };
+  return {
+    requireRepo,
+    list,
+    listText,
+    compactListText,
+    resolve,
+    currentBranch,
+    create,
+    merge,
+    update,
+    remove,
+    cleanupCandidates,
+    cleanup,
+  };
 }
 

@@ -2,7 +2,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { existsSync } from "node:fs";
-import { branchToDirName, parseWorktreeList, type WorktreeInfo } from "./parse.ts";
+import { branchToDirName, parseWorktreeList, validBranchName, type WorktreeInfo } from "./parse.ts";
 
 /**
  * Git operations for @pify/worktree. Every call is execFile with an argv
@@ -257,6 +257,20 @@ export async function createWorktree(
 export function removeWorktree(cwd: string, path: string, force: boolean, opts: LongOpts = {}): Promise<GitResult> {
   const args = ["worktree", "remove", ...(force ? ["--force"] : []), path];
   return gitLong(cwd, args, opts);
+}
+
+/** True only when branch is an ancestor of baseBranch; failures fail closed. */
+export function isBranchMerged(cwd: string, branch: string, baseBranch: string): boolean {
+  if (!validBranchName(branch) || !validBranchName(baseBranch)) return false;
+  return git(cwd, ["merge-base", "--is-ancestor", branch, baseBranch]).ok;
+}
+
+/** Delete a local branch using Git's safe merged-branch check, never force-delete. */
+export function deleteLocalBranch(cwd: string, branch: string, opts: LongOpts = {}): Promise<GitResult> {
+  if (!validBranchName(branch)) {
+    return Promise.resolve({ ok: false, output: `Invalid branch name ${JSON.stringify(branch)}.` });
+  }
+  return gitLong(cwd, ["branch", "-d", "--", branch], opts);
 }
 
 export function pruneWorktrees(cwd: string): GitResult {

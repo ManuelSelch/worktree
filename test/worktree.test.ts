@@ -134,6 +134,10 @@ test("worktree command completion offers branch targets after enter, merge, and 
   assert.deepEqual(completeWorktreeArguments("enter feature/x ", worktrees), null);
   assert.deepEqual(completeWorktreeArguments("create ", worktrees), null);
   assert.deepEqual(completeWorktreeArguments("rem", worktrees), [{ value: "remove", label: "remove — remove a worktree" }]);
+  assert.deepEqual(completeWorktreeArguments("cle", worktrees), [{
+    value: "cleanup",
+    label: "cleanup — interactively remove worktrees and optional local branches",
+  }]);
 });
 
 test("formatCompactWorktrees marks the active worktree without paths", () => {

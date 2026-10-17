@@ -61,7 +61,8 @@ Session switching is a user command, so **the agent cannot move itself**. That i
 `/worktree enter <branch|path>` — take the conversation into a worktree.
 `/worktree exit` — carry the conversation back to the main checkout.
 `/worktree update` — merge the primary branch into the current feature worktree (requires a clean worktree and confirmation).
-`/worktree remove <branch|path>` — remove, with the same rails as the tool. Branch names autocomplete after `remove`, as they do for `enter` and named `merge`.
+`/worktree remove <branch|path>` — remove one worktree and keep its branch, with the same rails as the tool. Branch names autocomplete after `remove`, as they do for `enter` and named `merge`.
+`/worktree cleanup` — open an interactive checklist to remove multiple worktrees, skip any entries, and optionally delete each local branch. Use ↑/↓ to navigate, Space to select a worktree, `b` to toggle its branch, `a`/`n` to select all/none, then Enter to review. Branch deletion uses Git's safe `-d` check; unmerged branches are kept and reported. Dirty worktrees require explicit confirmation before their changes are discarded. Primary, active-session, and locked worktrees cannot be removed.
 `/worktree merge [branch]` — merge back and clean up; without a branch, merges the current session worktree.
 `/worktree prune` — drop administrative records for worktrees whose directories are gone.
 
@@ -75,7 +76,7 @@ A branch, a full path, a directory name — or, for worktrees created by `isolat
 
 Every git call is an `execFile` argv — no shell, no string interpolation, ever. Branch names are validated against a restricted grammar (no leading `-`, no `..`, no ref tricks) before they reach git.
 
-Removal risk is assessed before anything happens: primary, current-session, locked, and dirty are four distinct verdicts, and only dirty is confirmable. Containment is checked on directory boundaries, so sitting in `feature-2` does not block removing `feature`.
+Removal risk is assessed before anything happens: primary, current-session, locked, and dirty are four distinct verdicts, and only dirty is confirmable. Containment is checked on directory boundaries, so sitting in `feature-2` does not block removing `feature`. Cleanup deletes a requested local branch only after its worktree was removed successfully, and only with `git branch -d`; a branch Git considers unmerged is retained. Remote branches are never changed.
 
 The slow operations — `worktree add` (a full checkout), `worktree remove`, and `merge` — run asynchronously with a generous 10-minute deadline and are wired to the tool's cancel signal, so a big checkout no longer freezes pi and never trips the 30-second timeout used for the quick status/list calls. If one is cancelled or does hit its deadline, the half-created (and locked) worktree is cleaned up best-effort — unlock, force-remove, prune, and delete the branch only if this call created it — and the result says what was cleaned.
 

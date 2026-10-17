@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Worktree cleanup — interaction mockup</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./main.js"></script>
+  </head>
+  <body>
+    <main class="terminal">
+      <div class="terminal-top"><span class="traffic"><i></i><i></i><i></i></span><span>pi · worktree cleanup</span><span class="top-right">~/code/orbit</span></div>
+      <section class="screen" aria-label="Mock terminal cleanup dialog">
+        <div class="prompt"><span class="prompt-mark">›</span> /worktree cleanup</div>
+        <div class="dialog" role="dialog" aria-labelledby="title" aria-describedby="subtitle">
+          <div class="border"></div>
+          <header>
+            <div class="eyebrow"><span class="pulse"></span> LOCAL REPOSITORY</div>
+            <h1 id="title">Clean up worktrees</h1>
+            <p id="subtitle">Choose what to remove. Local branches are deleted only when selected.</p>
+            <div class="repo-path">~/code/orbit <span>·</span> primary: <b>main</b></div>
+          </header>
+          <div class="toolbar">
+            <button class="text-button" id="select-all">Select all eligible</button>
+            <span class="selection-count" id="selection-count">2 selected</span>
+          </div>
+          <div class="worktree-list" id="worktree-list"></div>
+          <div class="warning" id="warning" hidden></div>
+          <footer>
+            <div class="key-hints"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>Space</kbd> toggle</span><span><kbd>Enter</kbd> continue</span><span><kbd>Esc</kbd> cancel</span></div>
+            <div class="actions">
+              <button class="cancel" id="cancel">Cancel</button>
+              <button class="primary" id="review">Review cleanup <span id="review-count">(2)</span></button>
+            </div>
+          </footer>
+          <div class="border bottom"></div>
+        </div>
+        <div class="console-line"><span class="cursor"></span><span>Changes are local. Remote branches are never deleted.</span></div>
+      </section>
+      <aside class="notes">
+        <span class="note-tag">INTERACTIVE MOCKUP</span>
+        <span>Toggle worktrees and branch deletion separately. Active, primary, and locked worktrees are protected.</span>
+      </aside>
+    </main>
+    <div class="toast" id="toast" aria-live="polite"></div>
+  </body>
+</html>

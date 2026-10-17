@@ -5,6 +5,9 @@ import { validBaseRef, validBranchName } from "../src/parse.ts";
 import { pruneWorktrees } from "../src/git.ts";
 import { completeWorktreeArguments } from "../src/completion.ts";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import { openCleanupSelector } from "./worktree-cleanup-ui.ts";
+import { normalizePath } from "../src/parse.ts";
+import { withUiLock } from "../src/ui-lock.ts";
 
 function getArgumentCompletions(
   prefix: string,
@@ -84,6 +87,44 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
             if (!rest) return ctx.ui.notify("Usage: /worktree remove <branch|path>", "warning");
 
             ctx.ui.notify(await controller.remove(ctx, rest), "info");
+            return;
+          }
+          case "cleanup": {
+            if (rest) return ctx.ui.notify("Usage: /worktree cleanup", "warning");
+            if (ctx.mode !== "tui") return ctx.ui.notify("/worktree cleanup requires interactive TUI mode.", "error");
+
+            const candidates = controller.cleanupCandidates(ctx);
+            const primaryBranch = candidates.find((candidate) => candidate.worktree.primary)?.worktree.branch ?? null;
+            const selected = await withUiLock(() => openCleanupSelector(ctx, candidates, primaryBranch));
+            if (selected === null) return ctx.ui.notify("Cleanup cancelled.", "info");
+            if (selected.length === 0) return ctx.ui.notify("No worktrees selected.", "info");
+
+            const byPath = new Map(candidates.map((candidate) => [normalizePath(candidate.worktree.path), candidate]));
+            const selectedCandidates = selected.flatMap((selection) => {
+              const candidate = byPath.get(normalizePath(selection.path));
+              return candidate ? [{ selection, candidate }] : [];
+            });
+            const dirty = selectedCandidates.filter(({ candidate }) => candidate.dirty);
+            const summaryLines = selectedCandidates.map(({ selection, candidate }) => {
+              const branch = candidate.worktree.branch;
+              const action = selection.deleteBranch && branch
+                ? `delete local branch${candidate.mergedIntoPrimary ? "" : " (safe delete may keep it if unmerged)"}`
+                : "keep local branch";
+              return `• ${branch ?? candidate.worktree.path}: remove worktree, ${action}`;
+            });
+            if (dirty.length > 0) {
+              summaryLines.push(
+                "",
+                `WARNING: uncommitted changes in ${dirty.length} worktree${dirty.length === 1 ? "" : "s"} will be lost.`,
+              );
+            }
+            summaryLines.push("Remote branches are never deleted.");
+            const approved = await withUiLock(() => ctx.ui.confirm("Review worktree cleanup", summaryLines.join("\n")));
+            if (!approved) return ctx.ui.notify("The user declined cleanup. Worktrees kept.", "info");
+
+            const approvedDirtyPaths = new Set(dirty.map(({ candidate }) => candidate.worktree.path));
+            const outcome = await controller.cleanup(ctx, selected, approvedDirtyPaths);
+            ctx.ui.notify(outcome.text, outcome.results.every((result) => result.removed) ? "info" : "warning");
             return;
           }
           case "prune": {

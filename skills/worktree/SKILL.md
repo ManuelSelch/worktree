@@ -36,6 +36,9 @@ edits.
    failure.
 6. `worktree_remove target="feature-x"` — abandon instead; dirty worktrees
    need the user's confirmation, the branch is always kept.
+7. For a batch of old feature worktrees, ask the user to run `/worktree cleanup`.
+   It opens an interactive checklist; selected local branches are deleted only
+   when explicitly checked, and Git's safe delete keeps unmerged branches.
 
 ## Rules
 
@@ -44,3 +47,5 @@ edits.
 - One branch per worktree; a branch already checked out elsewhere refuses.
 - Do not claim you are "now working in" a worktree you created. Until the user
   enters it, every path you read and edit is still the main checkout.
+- Cleanup is an interactive user command, not an agent tool; never imply that a
+  model-callable remove operation deletes a branch.
