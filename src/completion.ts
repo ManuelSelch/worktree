@@ -27,12 +27,12 @@ export function completeWorktreeArguments(prefix: string, worktrees: WorktreeInf
   if (!["enter", "merge", "remove"].includes(route)) return null;
 
   // There is only one target argument for these routes. Pi replaces the
-  // current argument token with the selected item's value.
+  // entire argument prefix, so completion values must include the subcommand.
   const argument = trimmed.slice(firstSpace).trimStart();
   if (/\s/.test(argument)) return null;
 
   const matches = worktrees
     .filter((worktree) => worktree.branch?.startsWith(argument))
-    .map((worktree) => ({ value: worktree.branch!, label: worktree.branch! }));
+    .map((worktree) => ({ value: `${route} ${worktree.branch!}`, label: worktree.branch! }));
   return matches.length > 0 ? matches : null;
 }

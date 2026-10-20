@@ -123,14 +123,20 @@ test("formatWorktrees renders flags and paths", () => {
   assert.equal(formatWorktrees([], new Set()), "No worktrees.");
 });
 
-test("worktree command completion offers branch targets after enter, merge, and remove", () => {
+test("worktree command completion returns full argument prefixes for Pi replacement", () => {
   const worktrees = parseWorktreeList(PORCELAIN);
 
-  assert.deepEqual(
-    completeWorktreeArguments("remove ", worktrees),
-    [{ value: "main", label: "main" }, { value: "feature/x", label: "feature/x" }],
-  );
-  assert.deepEqual(completeWorktreeArguments("merge fe", worktrees), [{ value: "feature/x", label: "feature/x" }]);
+  // Pi replaces every argument before the cursor, including the subcommand.
+  for (const route of ["enter", "merge", "remove"]) {
+    assert.deepEqual(completeWorktreeArguments(`${route} `, worktrees), [
+      { value: `${route} main`, label: "main" },
+      { value: `${route} feature/x`, label: "feature/x" },
+    ]);
+    assert.deepEqual(completeWorktreeArguments(`${route} fe`, worktrees), [
+      { value: `${route} feature/x`, label: "feature/x" },
+    ]);
+    assert.equal(completeWorktreeArguments(`${route} missing`, worktrees), null);
+  }
   assert.deepEqual(completeWorktreeArguments("enter feature/x ", worktrees), null);
   assert.deepEqual(completeWorktreeArguments("create ", worktrees), null);
   assert.deepEqual(completeWorktreeArguments("rem", worktrees), [{ value: "remove", label: "remove — remove a worktree" }]);
