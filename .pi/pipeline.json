@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "suites": {
+    "tests": {
+      "command": [
+        "bun",
+        "test"
+      ],
+      "cwd": ".",
+      "timeoutSeconds": 120,
+      "staleAfterMinutes": 30,
+      "auto": "after-agent"
+    },
+    "typecheck": {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": ".",
+      "timeoutSeconds": 120,
+      "staleAfterMinutes": 30,
+      "auto": "after-agent"
+    }
+  }
+}
