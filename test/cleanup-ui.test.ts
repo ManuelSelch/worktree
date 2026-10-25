@@ -80,7 +80,8 @@ for (const mode of ["tui", "rpc"] as const) {
     ui.checked("dirty", false);
     ui.checked("unmerged", false);
     assert.match(ui.prompts[0]!.options.join("\n"), /merged into main/);
-    assert.match(ui.prompts[0]!.options.join("\n"), /uncommitted changes/);
+    assert.match(ui.prompts[0]!.options.join("\n"), /Uncommited changes/);
+    assert.doesNotMatch(ui.prompts[0]!.options.join("\n"), /WARNING|will be lost/);
     assert.match(ui.prompts[0]!.options.join("\n"), /not merged/);
   });
 
