@@ -9,123 +9,159 @@ import type { CleanupCandidate, CleanupSelection } from "../src/cleanup.ts";
 function candidate(branch: string, overrides: Partial<CleanupCandidate> = {}): CleanupCandidate {
   return {
     worktree: { path: `/repo/${branch}`, branch, head: "abc123", primary: false, locked: false, detached: false, prunable: false },
-    current: false,
-    dirty: false,
-    mergedIntoPrimary: true,
-    ...overrides,
+    current: false, dirty: false, mergedIntoPrimary: true, ...overrides,
   };
 }
 
-function context(answers: (number | undefined)[]) {
-  const prompts: { title: string; options: string[] }[] = [];
-  const notifications: string[] = [];
-  const confirmations: string[] = [];
-  const ctx = {
-    cwd: "/repo",
-    mode: "rpc",
-    hasUI: true,
-    ui: {
-      select: async (title: string, options: string[]) => {
-        prompts.push({ title, options });
-        const index = answers.shift();
-        return index === undefined ? undefined : options[index];
+/** Shared UI driver: scenarios use menu actions, never dialog option indexes. */
+class CleanupDriver {
+  prompts: { title: string; options: string[] }[] = [];
+  confirmations: string[] = [];
+  notifications: string[] = [];
+  private actions: (string | undefined)[] = [];
+  approve = true;
+  ctx: ExtensionCommandContext;
+
+  constructor(mode: "tui" | "rpc" = "rpc") {
+    this.ctx = {
+      cwd: "/repo", mode, hasUI: true,
+      ui: {
+        select: async (title: string, options: string[]) => {
+          this.prompts.push({ title, options });
+          const action = this.actions.shift();
+          if (action === undefined) return undefined;
+          const matches = options.filter(option => option.includes(action));
+          assert.equal(matches.length, 1, `Expected one menu action matching ${action}`);
+          return matches[0];
+        },
+        confirm: async (_title: string, message: string) => {
+          this.confirmations.push(message);
+          return this.approve;
+        },
+        notify: (message: string, type?: string) => {
+          assert.notEqual(type, "error", message);
+          this.notifications.push(message);
+        },
+        custom: () => { throw new Error("Cleanup must use standard dialogs in both modes"); },
       },
-      confirm: async (_title: string, message: string) => { confirmations.push(message); return true; },
-      notify: (text: string) => { notifications.push(text); },
-      custom: () => { throw new Error("custom UI must not be used"); },
-    },
-  } as unknown as ExtensionCommandContext;
-  return { ctx, prompts, confirmations, notifications };
-}
+    } as unknown as ExtensionCommandContext;
+  }
 
-test("standard cleanup dialogs collect skip, remove-only and branch-delete decisions in RPC mode", async () => {
-  const { ctx, prompts } = context([0, 1, 2]);
-  const result = await openCleanupSelector(ctx, [candidate("skip"), candidate("keep"), candidate("delete")], "main");
-  assert.deepEqual(result, [
-    { path: "/repo/keep", deleteBranch: false },
-    { path: "/repo/delete", deleteBranch: true },
-  ]);
-  assert.match(prompts[0]!.title, /1\/3.*skip/s);
-  assert.match(prompts[0]!.title, /\/repo\/skip/);
-  assert.match(prompts[0]!.title, /merged into main/);
-});
-
-test("closing a cleanup dialog cancels the whole selection", async () => {
-  const { ctx } = context([2, undefined]);
-  assert.equal(await openCleanupSelector(ctx, [candidate("first"), candidate("second")], "main"), null);
-});
-
-test("explicit Cancel cleanup discards previously collected decisions", async () => {
-  const { ctx } = context([1, 3]);
-  assert.equal(await openCleanupSelector(ctx, [candidate("first"), candidate("second")], "main"), null);
-});
-
-test("protected worktrees are never offered for removal", async () => {
-  const primary = candidate("main");
-  primary.worktree.primary = true;
-  const locked = candidate("locked");
-  locked.worktree.locked = true;
-  const { ctx, prompts } = context([1]);
-  const result = await openCleanupSelector(ctx, [primary, candidate("active", { current: true }), locked, candidate("feature")], "main");
-  assert.deepEqual(result, [{ path: "/repo/feature", deleteBranch: false }]);
-  assert.equal(prompts.length, 1);
-});
-
-test("detached worktrees have no branch deletion option and show dirty and merge warnings", async () => {
-  const detached = candidate("detached", { dirty: true });
-  detached.worktree.branch = null;
-  detached.worktree.detached = true;
-  const { ctx, prompts } = context([1, 0]);
-  const result = await openCleanupSelector(ctx, [detached, candidate("unmerged", { mergedIntoPrimary: false })], "main");
-  assert.deepEqual(result, [{ path: "/repo/detached", deleteBranch: false }]);
-  assert.ok(!prompts[0]!.options.some((option) => option.includes("delete local branch")));
-  assert.match(prompts[0]!.title, /uncommitted changes/i);
-  assert.match(prompts[1]!.title, /not merged/i);
-});
-
-for (const scenario of ["cancel selection", "decline final confirmation", "no UI"] as const) {
-  test(`cleanup never executes after ${scenario}`, async () => {
-    const { ctx } = context(scenario === "cancel selection" ? [undefined] : [2]);
-    if (scenario === "no UI") Object.assign(ctx, { hasUI: false });
-    ctx.ui.confirm = async () => false;
+  choose(...actions: (string | undefined)[]) { this.actions.push(...actions); }
+  select(candidates: CleanupCandidate[]) { return openCleanupSelector(this.ctx, candidates, "main"); }
+  checked(branch: string, expected: boolean, prompt = 0) {
+    const row = this.prompts[prompt]!.options.find(option => option.includes(`/repo/${branch}`));
+    assert.ok(row, `Missing worktree ${branch}`);
+    assert.ok(row.startsWith(expected ? "[x]" : "[ ]"), row);
+  }
+  async command(candidates: CleanupCandidate[], cleanup: WorktreeController["cleanup"]) {
     let handler!: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
-    let executed = false;
     const pi = {
       on: () => {},
       registerCommand: (_name: string, command: { handler: typeof handler }) => { handler = command.handler; },
     } as unknown as ExtensionAPI;
-    const controller = {
-      requireRepo: () => "/repo",
-      cleanupCandidates: () => [candidate("feature")],
-      cleanup: async () => { executed = true; throw new Error("must not execute"); },
-    } as unknown as WorktreeController;
+    const controller = { requireRepo: () => "/repo", cleanupCandidates: () => candidates, cleanup } as unknown as WorktreeController;
     registerWorktreeCommands(pi, controller);
-    await handler("cleanup", ctx);
-    assert.equal(executed, false);
+    await handler("cleanup", this.ctx);
+  }
+}
+
+for (const mode of ["tui", "rpc"] as const) {
+  test(`${mode}: checklist preselects only merged clean worktrees`, async () => {
+    const ui = new CleanupDriver(mode);
+    ui.choose("Review cleanup");
+    assert.deepEqual(await ui.select([
+      candidate("merged"), candidate("dirty", { dirty: true }),
+      candidate("unmerged", { mergedIntoPrimary: false }),
+    ]), [{ path: "/repo/merged", deleteBranch: true }]);
+    assert.equal(ui.prompts.length, 1);
+    ui.checked("merged", true);
+    ui.checked("dirty", false);
+    ui.checked("unmerged", false);
+    assert.match(ui.prompts[0]!.options.join("\n"), /merged into main/);
+    assert.match(ui.prompts[0]!.options.join("\n"), /uncommitted changes/);
+    assert.match(ui.prompts[0]!.options.join("\n"), /not merged/);
+  });
+
+  test(`${mode}: toggling keeps all entries in one menu with uniform remove-and-delete`, async () => {
+    const ui = new CleanupDriver(mode);
+    ui.choose("/repo/first", "/repo/second", "Review cleanup");
+    assert.deepEqual(await ui.select([candidate("first"), candidate("second", { mergedIntoPrimary: false })]),
+      [{ path: "/repo/second", deleteBranch: true }]);
+    ui.checked("first", false, 1);
+    ui.checked("second", true, 2);
+    assert.equal(new Set(ui.prompts.map(prompt => prompt.options.length)).size, 1);
+    const shape = (title: string) => title.replace(/[\d/]+/g, "");
+    assert.equal(new Set(ui.prompts.map(prompt => shape(prompt.title))).size, 1);
   });
 }
 
-test("RPC cleanup command selects and confirms before executing without the TUI guard", async () => {
-  const { ctx, confirmations, notifications } = context([2]);
-  let handler!: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
+for (const cancel of [undefined, "Cancel cleanup"]) {
+  test(`cancelling via ${cancel ?? "dismissal"} discards all toggles`, async () => {
+    const ui = new CleanupDriver();
+    ui.choose("/repo/first", cancel);
+    assert.equal(await ui.select([candidate("first"), candidate("second")]), null);
+  });
+}
+
+test("primary, current and locked worktrees are never offered or selected", async () => {
+  const primary = candidate("main"); primary.worktree.primary = true;
+  const locked = candidate("locked"); locked.worktree.locked = true;
+  const ui = new CleanupDriver();
+  ui.choose("Review cleanup");
+  assert.deepEqual(await ui.select([primary, locked, candidate("active", { current: true }), candidate("feature")]),
+    [{ path: "/repo/feature", deleteBranch: true }]);
+  assert.equal(ui.prompts[0]!.options.length, 3);
+  assert.doesNotMatch(ui.prompts[0]!.options.join("\n"), /\/repo\/(main|locked|active)/);
+});
+
+test("detached worktrees can be selected without branch deletion", async () => {
+  const detached = candidate("detached", { mergedIntoPrimary: false });
+  detached.worktree.branch = null; detached.worktree.detached = true;
+  const ui = new CleanupDriver();
+  ui.choose("/repo/detached", "Review cleanup");
+  assert.deepEqual(await ui.select([detached]), [{ path: "/repo/detached", deleteBranch: false }]);
+  assert.match(ui.prompts[0]!.options[0]!, /abc123.*detached HEAD/);
+});
+
+test("no eligible worktrees skips the dialog", async () => {
+  const ui = new CleanupDriver();
+  assert.deepEqual(await ui.select([candidate("current", { current: true })]), []);
+  assert.equal(ui.prompts.length, 0);
+});
+
+test("all worktrees can be deselected before review", async () => {
+  const ui = new CleanupDriver();
+  ui.choose("/repo/feature", "Review cleanup");
+  assert.deepEqual(await ui.select([candidate("feature")]), []);
+});
+
+for (const scenario of ["cancel selection", "decline final confirmation", "no UI", "empty selection"] as const) {
+  test(`cleanup never executes after ${scenario}`, async () => {
+    const ui = new CleanupDriver();
+    ui.choose(...(scenario === "cancel selection" ? [undefined] : scenario === "empty selection" ? ["/repo/feature", "Review cleanup"] : ["Review cleanup"]));
+    if (scenario === "no UI") Object.assign(ui.ctx, { hasUI: false });
+    if (scenario === "decline final confirmation") ui.approve = false;
+    let executed = false;
+    await ui.command([candidate("feature")], async () => { executed = true; throw new Error("must not execute"); });
+    assert.equal(executed, false);
+    assert.equal(ui.confirmations.length, scenario === "decline final confirmation" ? 1 : 0);
+    if (scenario === "empty selection") assert.deepEqual(ui.notifications, ["No worktrees selected."]);
+  });
+}
+
+test("RPC cleanup confirms selected dirty worktrees and branch deletion before execution", async () => {
+  const ui = new CleanupDriver();
+  ui.choose("/repo/feature", "Review cleanup");
   let executed: CleanupSelection[] | undefined;
-  const pi = {
-    on: () => {},
-    registerCommand: (_name: string, command: { handler: typeof handler }) => { handler = command.handler; },
-  } as unknown as ExtensionAPI;
-  const controller = {
-    requireRepo: () => "/repo",
-    cleanupCandidates: () => [candidate("feature", { dirty: true })],
-    cleanup: async (_ctx: ExtensionCommandContext, selected: CleanupSelection[], approvedDirtyPaths: Set<string>) => {
-      assert.equal(confirmations.length, 1);
-      assert.match(confirmations[0]!, /uncommitted changes.*will be lost/s);
-      assert.ok(approvedDirtyPaths.has("/repo/feature"));
-      executed = selected;
-      return { text: "Cleanup finished", results: [{ removed: true }] };
-    },
-  } as unknown as WorktreeController;
-  registerWorktreeCommands(pi, controller);
-  await handler("cleanup", ctx);
+  await ui.command([candidate("feature", { dirty: true })], async (_ctx, selected, approvedDirtyPaths) => {
+    assert.equal(ui.confirmations.length, 1);
+    assert.match(ui.confirmations[0]!, /uncommitted changes.*will be lost/s);
+    assert.match(ui.confirmations[0]!, /delete local branch/);
+    assert.ok(approvedDirtyPaths.has("/repo/feature"));
+    executed = selected;
+    return { text: "Cleanup finished", results: [] };
+  });
   assert.deepEqual(executed, [{ path: "/repo/feature", deleteBranch: true }]);
-  assert.deepEqual(notifications, ["Cleanup finished"]);
+  assert.deepEqual(ui.notifications, ["Cleanup finished"]);
 });
