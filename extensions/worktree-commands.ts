@@ -8,6 +8,8 @@ import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import { openCleanupSelector } from "./worktree-cleanup-ui.ts";
 import { normalizePath } from "../src/parse.ts";
 import { withUiLock } from "../src/ui-lock.ts";
+import { startCleanupProgress } from "./worktree-cleanup-progress.ts";
+import type { CleanupOutcome } from "../src/cleanup.ts";
 
 function getArgumentCompletions(
   prefix: string,
@@ -19,6 +21,11 @@ function getArgumentCompletions(
 
 export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeController): void {
   let completionCwd = "";
+  const activeProgress = new Set<ReturnType<typeof startCleanupProgress>>();
+  pi.on("session_shutdown", () => {
+    for (const progress of activeProgress) progress.dispose();
+    activeProgress.clear();
+  });
   pi.on("session_start", (_event, ctx) => {
     completionCwd = ctx.cwd;
   });
@@ -122,7 +129,15 @@ export function registerWorktreeCommands(pi: ExtensionAPI, controller: WorktreeC
             if (!approved) return ctx.ui.notify("The user declined cleanup. Worktrees kept.", "info");
 
             const approvedDirtyPaths = new Set(dirty.map(({ candidate }) => candidate.worktree.path));
-            const outcome = await controller.cleanup(ctx, selected, approvedDirtyPaths);
+            const progress = startCleanupProgress(ctx.ui);
+            activeProgress.add(progress);
+            let outcome: CleanupOutcome;
+            try {
+              outcome = await controller.cleanup(ctx, selected, approvedDirtyPaths, undefined, progress.update);
+            } finally {
+              activeProgress.delete(progress);
+              progress.dispose();
+            }
             ctx.ui.notify(outcome.text, outcome.results.every((result) => result.removed) ? "info" : "warning");
             return;
           }

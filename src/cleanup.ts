@@ -25,7 +25,15 @@ export interface CleanupOutcome {
   results: CleanupItemResult[];
 }
 
+export interface CleanupProgress {
+  index: number;
+  total: number;
+  label: string;
+  phase: "checking" | "removing" | "deleting-branch";
+}
+
 export interface CleanupDeps {
+  onProgress?(progress: CleanupProgress): void;
   listWorktrees(): WorktreeInfo[];
   isDirty(path: string): boolean;
   removeWorktree(path: string, force: boolean): Promise<{ ok: boolean; output: string }>;
@@ -42,6 +50,7 @@ export async function runCleanup(
   if (selections.length === 0) return { text: "No worktrees selected.", results: [] };
 
   const approvedDirtyKeys = new Set([...approvedDirtyPaths].map(normalizePath));
+  const total = new Set(selections.map(selection => normalizePath(selection.path))).size;
   const seen = new Set<string>();
   const results: CleanupItemResult[] = [];
   for (const selection of selections) {
@@ -50,6 +59,8 @@ export async function runCleanup(
     seen.add(key);
 
     const target = deps.listWorktrees().find((worktree) => normalizePath(worktree.path) === key);
+    const progress = { index: seen.size, total, label: target?.branch ?? selection.path };
+    deps.onProgress?.({ ...progress, phase: "checking" });
     if (!target) {
       results.push({
         path: selection.path,
@@ -72,6 +83,7 @@ export async function runCleanup(
       continue;
     }
 
+    deps.onProgress?.({ ...progress, phase: "removing" });
     const removal = await deps.removeWorktree(target.path, dirty);
     if (!removal.ok) {
       results.push({
@@ -85,6 +97,7 @@ export async function runCleanup(
     }
 
     if (selection.deleteBranch && target.branch) {
+      deps.onProgress?.({ ...progress, phase: "deleting-branch" });
       const branchRemoval = await deps.deleteBranch(target.branch);
       if (branchRemoval.ok) {
         results.push({

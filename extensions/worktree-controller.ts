@@ -18,7 +18,7 @@ import {
   repoToplevel,
 } from "../src/git.ts";
 import { runMerge, type MergeOutcome } from "../src/merge.ts";
-import { runCleanup, type CleanupCandidate, type CleanupOutcome, type CleanupSelection } from "../src/cleanup.ts";
+import { runCleanup, type CleanupCandidate, type CleanupOutcome, type CleanupSelection, type CleanupProgress } from "../src/cleanup.ts";
 import { withUiLock } from "../src/ui-lock.ts";
 
 type UiContext = ExtensionContext;
@@ -40,6 +40,7 @@ export interface WorktreeController {
     selections: CleanupSelection[],
     approvedDirtyPaths: ReadonlySet<string>,
     signal?: AbortSignal,
+    onProgress?: (progress: CleanupProgress) => void,
   ): Promise<CleanupOutcome>;
 }
 
@@ -129,9 +130,11 @@ export function createWorktreeController(): WorktreeController {
     selections: CleanupSelection[],
     approvedDirtyPaths: ReadonlySet<string>,
     signal?: AbortSignal,
+    onProgress?: (progress: CleanupProgress) => void,
   ): Promise<CleanupOutcome> {
     requireRepo(ctx);
     return runCleanup(ctx.cwd, selections, approvedDirtyPaths, {
+      onProgress,
       listWorktrees: () => list(ctx.cwd),
       isDirty,
       removeWorktree: (path, force) => removeWorktree(ctx.cwd, path, force, { signal }),

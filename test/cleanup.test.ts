@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WorktreeInfo } from "../src/parse.ts";
-import { runCleanup, type CleanupSelection } from "../src/cleanup.ts";
+import { runCleanup, type CleanupSelection, type CleanupProgress } from "../src/cleanup.ts";
 import { branchExists, deleteLocalBranch, isBranchMerged } from "../src/git.ts";
 
 function worktree(overrides: Partial<WorktreeInfo> = {}): WorktreeInfo {
@@ -167,6 +167,59 @@ test("runCleanup requires approval for dirty worktrees and forces removal only f
   const approved = await runCleanup("/repo", [feature], new Set([feature.path.toUpperCase()]), cleanupDeps);
   assert.equal(calls[0], `remove:${feature.path}:true`);
   assert.equal(approved.results[0]?.removed, true);
+});
+
+test("cleanup emits each phase before its operation with deduplicated item counts", async () => {
+  const progress: CleanupProgress[] = [];
+  const { deps: cleanupDeps } = deps({
+    onProgress: event => { progress.push(event); },
+    isDirty: () => { assert.equal(progress.at(-1)?.phase, "checking"); return false; },
+    removeWorktree: async () => {
+      assert.equal(progress.at(-1)?.phase, "removing");
+      return { ok: true, output: "" };
+    },
+    deleteBranch: async () => {
+      assert.equal(progress.at(-1)?.phase, "deleting-branch");
+      return { ok: true, output: "" };
+    },
+  });
+  await runCleanup("/repo", [feature, { ...feature, path: feature.path.toUpperCase() }], new Set(), cleanupDeps);
+  assert.deepEqual(progress, ["checking", "removing", "deleting-branch"].map(phase => ({
+    index: 1, total: 1, label: "feature", phase,
+  })));
+});
+
+for (const scenario of ["missing", "locked", "dirty", "removal-failed", "detached", "branch-refused"] as const) {
+  test(`cleanup progress advances after ${scenario}`, async () => {
+    const progress: CleanupProgress[] = [];
+    const first = worktree({
+      locked: scenario === "locked",
+      ...(scenario === "detached" ? { branch: null, detached: true } : {}),
+    });
+    const second = worktree({ path: "/repo/worktrees/next", branch: "next" });
+    const { deps: cleanupDeps } = deps({
+      listWorktrees: () => scenario === "missing" ? [second] : [first, second],
+      isDirty: path => path === first.path && scenario === "dirty",
+      onProgress: event => { progress.push(event); },
+      removeWorktree: async path => ({ ok: !(path === first.path && scenario === "removal-failed"), output: "busy" }),
+      deleteBranch: async branch => ({ ok: !(branch === first.branch && scenario === "branch-refused"), output: "not merged" }),
+    });
+    await runCleanup("/repo", [feature, { path: second.path, deleteBranch: true }], new Set(), cleanupDeps);
+    const firstPhases = progress.filter(event => event.index === 1).map(event => event.phase);
+    assert.deepEqual(firstPhases,
+      ["missing", "locked", "dirty"].includes(scenario) ? ["checking"]
+        : ["removal-failed", "detached"].includes(scenario) ? ["checking", "removing"]
+          : ["checking", "removing", "deleting-branch"]);
+    assert.deepEqual(progress.filter(event => event.index === 2), ["checking", "removing", "deleting-branch"].map(phase => ({
+      index: 2, total: 2, label: "next", phase,
+    })));
+    assert.equal(progress[0]?.label, ["missing", "detached"].includes(scenario) ? first.path : "feature");
+  });
+}
+
+test("empty cleanup does not emit progress", async () => {
+  const { deps: cleanupDeps } = deps({ onProgress: () => { assert.fail("No work to report"); } });
+  await runCleanup("/repo", [], new Set(), cleanupDeps);
 });
 
 test("runCleanup re-resolves selected paths before each operation", async () => {

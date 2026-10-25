@@ -18,6 +18,9 @@ class CleanupDriver {
   prompts: { title: string; options: string[] }[] = [];
   confirmations: string[] = [];
   notifications: string[] = [];
+  widgets: { key: string; lines: string[] | undefined; placement?: string }[] = [];
+  expectError = false;
+  private shutdownHandler: () => void = () => {};
   private actions: (string | undefined)[] = [];
   approve = true;
   ctx: ExtensionCommandContext;
@@ -39,14 +42,23 @@ class CleanupDriver {
           return this.approve;
         },
         notify: (message: string, type?: string) => {
-          assert.notEqual(type, "error", message);
+          if (!this.expectError) assert.notEqual(type, "error", message);
           this.notifications.push(message);
+        },
+        setWidget: (key: string, lines: string[] | undefined, options?: { placement?: string }) => {
+          assert.equal(this.confirmations.length, 1, "Progress must start after confirmation");
+          this.widgets.push({ key, lines, placement: options?.placement });
         },
         custom: () => { throw new Error("Cleanup must use standard dialogs in both modes"); },
       },
     } as unknown as ExtensionCommandContext;
   }
 
+  shutdown() { this.shutdownHandler(); }
+  progressIs(expected: string | undefined) {
+    assert.deepEqual(this.widgets.at(-1)?.lines, expected === undefined ? undefined : [expected]);
+    assert.ok(this.widgets.length > 0, "Expected progress widget");
+  }
   choose(...actions: (string | undefined)[]) { this.actions.push(...actions); }
   select(candidates: CleanupCandidate[]) { return openCleanupSelector(this.ctx, candidates, "main"); }
   checked(branch: string, expected: boolean, prompt = 0) {
@@ -57,7 +69,9 @@ class CleanupDriver {
   async command(candidates: CleanupCandidate[], cleanup: WorktreeController["cleanup"]) {
     let handler!: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
     const pi = {
-      on: () => {},
+      on: (event: string, handler: () => void) => {
+        if (event === "session_shutdown") this.shutdownHandler = handler;
+      },
       registerCommand: (_name: string, command: { handler: typeof handler }) => { handler = command.handler; },
     } as unknown as ExtensionAPI;
     const controller = { requireRepo: () => "/repo", cleanupCandidates: () => candidates, cleanup } as unknown as WorktreeController;
@@ -147,9 +161,43 @@ for (const scenario of ["cancel selection", "decline final confirmation", "no UI
     let executed = false;
     await ui.command([candidate("feature")], async () => { executed = true; throw new Error("must not execute"); });
     assert.equal(executed, false);
+    assert.deepEqual(ui.widgets, []);
     assert.equal(ui.confirmations.length, scenario === "decline final confirmation" ? 1 : 0);
     if (scenario === "empty selection") assert.deepEqual(ui.notifications, ["No worktrees selected."]);
   });
+}
+
+for (const mode of ["tui", "rpc"] as const) {
+  for (const outcome of ["success", "error", "shutdown"] as const) {
+    test(`${mode}: cleanup progress is forwarded and cleared on ${outcome}`, async () => {
+      const ui = new CleanupDriver(mode);
+      ui.expectError = outcome === "error";
+      ui.choose("Review cleanup");
+      await ui.command([candidate("feature")], async (_ctx, _selected, _dirty, _signal, onProgress) => {
+        ui.progressIs("Cleanup · Preparing… · 0s");
+        assert.equal(ui.widgets[0]?.placement, "aboveEditor");
+        assert.ok(onProgress);
+        onProgress({ index: 1, total: 1, label: "feature", phase: "removing" });
+        ui.progressIs("Cleanup 1/1 · Removing feature · 0s");
+        await Promise.resolve();
+        onProgress({ index: 1, total: 1, label: "feature", phase: "deleting-branch" });
+        ui.progressIs("Cleanup 1/1 · Deleting branch feature · 0s");
+        if (outcome === "shutdown") {
+          ui.shutdown();
+          ui.progressIs(undefined);
+          const count = ui.widgets.length;
+          onProgress({ index: 1, total: 1, label: "late", phase: "checking" });
+          assert.equal(ui.widgets.length, count);
+        }
+        if (outcome === "error") throw new Error("Git failed");
+        return { text: "Cleanup finished", results: [] };
+      });
+      ui.progressIs(undefined);
+      assert.deepEqual(ui.notifications, [outcome === "error" ? "Git failed" : "Cleanup finished"]);
+      assert.equal(ui.widgets.filter(widget => widget.lines === undefined).length, 1);
+      assert.equal(new Set(ui.widgets.map(widget => widget.key)).size, 1);
+    });
+  }
 }
 
 test("RPC cleanup confirms selected dirty worktrees and branch deletion before execution", async () => {
