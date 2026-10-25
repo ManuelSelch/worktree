@@ -50,7 +50,7 @@ class CleanupDriver {
   choose(...actions: (string | undefined)[]) { this.actions.push(...actions); }
   select(candidates: CleanupCandidate[]) { return openCleanupSelector(this.ctx, candidates, "main"); }
   checked(branch: string, expected: boolean, prompt = 0) {
-    const row = this.prompts[prompt]!.options.find(option => option.includes(`/repo/${branch}`));
+    const row = this.prompts[prompt]!.options.find(option => option.slice(4).startsWith(`${branch} —`));
     assert.ok(row, `Missing worktree ${branch}`);
     assert.ok(row.startsWith(expected ? "[x]" : "[ ]"), row);
   }
@@ -75,6 +75,7 @@ for (const mode of ["tui", "rpc"] as const) {
       candidate("unmerged", { mergedIntoPrimary: false }),
     ]), [{ path: "/repo/merged", deleteBranch: true }]);
     assert.equal(ui.prompts.length, 1);
+    assert.doesNotMatch(ui.prompts[0]!.options.join("\n"), /\/repo\//);
     ui.checked("merged", true);
     ui.checked("dirty", false);
     ui.checked("unmerged", false);
@@ -85,7 +86,7 @@ for (const mode of ["tui", "rpc"] as const) {
 
   test(`${mode}: toggling keeps all entries in one menu with uniform remove-and-delete`, async () => {
     const ui = new CleanupDriver(mode);
-    ui.choose("/repo/first", "/repo/second", "Review cleanup");
+    ui.choose("first", "second", "Review cleanup");
     assert.deepEqual(await ui.select([candidate("first"), candidate("second", { mergedIntoPrimary: false })]),
       [{ path: "/repo/second", deleteBranch: true }]);
     ui.checked("first", false, 1);
@@ -99,7 +100,7 @@ for (const mode of ["tui", "rpc"] as const) {
 for (const cancel of [undefined, "Cancel cleanup"]) {
   test(`cancelling via ${cancel ?? "dismissal"} discards all toggles`, async () => {
     const ui = new CleanupDriver();
-    ui.choose("/repo/first", cancel);
+    ui.choose("first", cancel);
     assert.equal(await ui.select([candidate("first"), candidate("second")]), null);
   });
 }
@@ -112,14 +113,14 @@ test("primary, current and locked worktrees are never offered or selected", asyn
   assert.deepEqual(await ui.select([primary, locked, candidate("active", { current: true }), candidate("feature")]),
     [{ path: "/repo/feature", deleteBranch: true }]);
   assert.equal(ui.prompts[0]!.options.length, 3);
-  assert.doesNotMatch(ui.prompts[0]!.options.join("\n"), /\/repo\/(main|locked|active)/);
+  assert.doesNotMatch(ui.prompts[0]!.options.join("\n"), /\[[x ]\] (main|locked|active) —/);
 });
 
 test("detached worktrees can be selected without branch deletion", async () => {
   const detached = candidate("detached", { mergedIntoPrimary: false });
   detached.worktree.branch = null; detached.worktree.detached = true;
   const ui = new CleanupDriver();
-  ui.choose("/repo/detached", "Review cleanup");
+  ui.choose("detached", "Review cleanup");
   assert.deepEqual(await ui.select([detached]), [{ path: "/repo/detached", deleteBranch: false }]);
   assert.match(ui.prompts[0]!.options[0]!, /abc123.*detached HEAD/);
 });
@@ -132,14 +133,14 @@ test("no eligible worktrees skips the dialog", async () => {
 
 test("all worktrees can be deselected before review", async () => {
   const ui = new CleanupDriver();
-  ui.choose("/repo/feature", "Review cleanup");
+  ui.choose("feature", "Review cleanup");
   assert.deepEqual(await ui.select([candidate("feature")]), []);
 });
 
 for (const scenario of ["cancel selection", "decline final confirmation", "no UI", "empty selection"] as const) {
   test(`cleanup never executes after ${scenario}`, async () => {
     const ui = new CleanupDriver();
-    ui.choose(...(scenario === "cancel selection" ? [undefined] : scenario === "empty selection" ? ["/repo/feature", "Review cleanup"] : ["Review cleanup"]));
+    ui.choose(...(scenario === "cancel selection" ? [undefined] : scenario === "empty selection" ? ["feature", "Review cleanup"] : ["Review cleanup"]));
     if (scenario === "no UI") Object.assign(ui.ctx, { hasUI: false });
     if (scenario === "decline final confirmation") ui.approve = false;
     let executed = false;
@@ -152,7 +153,7 @@ for (const scenario of ["cancel selection", "decline final confirmation", "no UI
 
 test("RPC cleanup confirms selected dirty worktrees and branch deletion before execution", async () => {
   const ui = new CleanupDriver();
-  ui.choose("/repo/feature", "Review cleanup");
+  ui.choose("feature", "Review cleanup");
   let executed: CleanupSelection[] | undefined;
   await ui.command([candidate("feature", { dirty: true })], async (_ctx, selected, approvedDirtyPaths) => {
     assert.equal(ui.confirmations.length, 1);

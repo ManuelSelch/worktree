@@ -18,7 +18,7 @@ export async function openCleanupSelector(
     const status = worktree.branch
       ? mergedIntoPrimary ? `merged into ${primaryBranch ?? "primary"}` : "not merged; safe branch deletion may be refused"
       : "detached HEAD; no local branch to delete";
-    return `${worktree.branch ?? worktree.head.slice(0, 8)} — ${worktree.path} — ${status} — ${
+    return `${worktree.branch ?? worktree.head.slice(0, 8)} — ${status} — ${
       dirty ? "WARNING: uncommitted changes will be lost if removed" : "clean"
     }`;
   });
