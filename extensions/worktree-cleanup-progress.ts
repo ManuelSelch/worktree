@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type { CleanupProgress } from "../src/cleanup.ts";
 
@@ -16,9 +15,9 @@ const clock: CleanupProgressClock = {
   },
 };
 
-/** One invocation owns its own widget and timer; dispose on completion or shutdown. */
+/** Cleanup runs one invocation at a time, so a fixed key is enough; dispose on completion or shutdown. */
 export function startCleanupProgress(ui: Pick<ExtensionUIContext, "setWidget">, time = clock) {
-  const key = `worktree-cleanup-${randomUUID()}`;
+  const key = "worktree-cleanup";
   const started = time.now();
   let current: CleanupProgress | undefined;
   let disposed = false;

@@ -21,16 +21,17 @@ Add a temporary plain-text widget above the message input while confirmed cleanu
 - Add an optional callback to `CleanupDeps` and after the existing optional signal in `controller.cleanup`; existing callers remain valid.
 - Proposed progress values: one-based item index, deduplicated total, display label, and phase (`checking`, `removing`, `deleting-branch`). Preparing has no item yet. Counters indicate items, not Git percentage or success count.
 - Widget output uses `setWidget(key, string[], { placement: "aboveEditor" })`; clearing uses `undefined`. No persisted state or wire changes.
+- Proposed UUID removal: the presenter uses the fixed key `worktree-cleanup` for updates and disposal. Only one cleanup runs at a time; no UUID, counter or overlap handling is needed. Progress text, timers and command behavior are unchanged.
 
 ## Decisions & Trade-offs
 - Serial Git operations and all safety checks stay unchanged. No speedup or file-level percentage is promised.
 - Existing synchronous Git checks can briefly delay timer refresh; the long-running removal/deletion calls are asynchronous.
-- Keep branch names in progress, falling back to path only for detached/missing worktrees. Use unique widget keys so overlapping invocations cannot clear one another.
+- Keep branch names in progress, falling back to path only for detached/missing worktrees. Reuse the fixed widget key because only one cleanup runs at a time.
 - The small presenter module isolates timer/resource lifecycle from Git logic and makes clock-based tests deterministic without new dependencies.
 
 ## Verification
 - Executor tests cover phase ordering, deduplication, skips, failures and detached branches.
-- Presenter tests use controlled time to verify initial display, elapsed updates, in-place widget changes, disposal and ignored late events.
+- Presenter tests use controlled time to verify initial display, elapsed updates, in-place widget changes, disposal and ignored late events. Assert the fixed `worktree-cleanup` key and replace overlapping-presenter coverage with sequential cleanup reuse.
 - Command-driver tests in terminal/RPC contexts verify confirmation-before-widget, progress forwarding and cleanup on success, failure and shutdown. Run the full suite, typecheck and diff checks.
 
 ## Open Questions

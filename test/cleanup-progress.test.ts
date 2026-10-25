@@ -53,16 +53,24 @@ test("disposal clears the widget and timer once and ignores late events and tick
   assert.equal(f.writes.length, count);
 });
 
-test("overlapping cleanup presenters cannot overwrite or clear each other", () => {
+test("sequential cleanups reuse the fixed widget key without a UUID", () => {
   const f = fixture();
   const first = startCleanupProgress(f.ui, f.clock);
+  const lateTick = [...f.ticks][0]!;
+  first.dispose();
+  assert.equal(f.ticks.size, 0);
+  f.advance(5000);
   const second = startCleanupProgress(f.ui, f.clock);
   try {
-    assert.notEqual(f.writes[0]?.key, f.writes[1]?.key);
+    const count = f.writes.length;
+    lateTick();
     first.dispose();
-    assert.equal(f.ticks.size, 1);
+    assert.equal(f.writes.length, count);
+    assert.deepEqual(f.writes.at(-1)?.lines, ["Cleanup · Preparing… · 0s"]);
     f.advance(1000);
-    assert.equal(f.writes.at(-1)?.key, f.writes[1]?.key);
     assert.deepEqual(f.writes.at(-1)?.lines, ["Cleanup · Preparing… · 1s"]);
-  } finally { first.dispose(); second.dispose(); }
+  } finally { second.dispose(); }
+  assert.ok(f.writes.every(write => write.key === "worktree-cleanup"));
+  assert.equal(f.writes.at(-1)?.lines, undefined);
+  assert.equal(f.ticks.size, 0);
 });
