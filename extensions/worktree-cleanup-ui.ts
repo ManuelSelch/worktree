@@ -5,7 +5,7 @@ import type { CleanupCandidate, CleanupSelection } from "../src/cleanup.ts";
 export async function openCleanupSelector(
   ctx: ExtensionCommandContext,
   candidates: CleanupCandidate[],
-  primaryBranch: string | null,
+  _primaryBranch: string | null,
 ): Promise<CleanupSelection[] | null> {
   if (!ctx.hasUI) return null;
   const eligible = candidates.filter(({ worktree, current }) => !worktree.primary && !current && !worktree.locked);
@@ -14,21 +14,21 @@ export async function openCleanupSelector(
   const selected = new Set(eligible.filter(candidate => candidate.mergedIntoPrimary && !candidate.dirty));
   const review = "Review cleanup";
   const cancel = "Cancel cleanup";
+  const hasUnmerged = eligible.some(({ worktree, mergedIntoPrimary }) => worktree.branch && !mergedIntoPrimary);
+  const hasMerged = eligible.some(({ worktree, mergedIntoPrimary }) => worktree.branch && mergedIntoPrimary);
   const labels = eligible.map(({ worktree, dirty, mergedIntoPrimary }) => {
-    const status = worktree.branch
-      ? mergedIntoPrimary ? `merged into ${primaryBranch ?? "primary"}` : "not merged; safe branch deletion may be refused"
-      : "detached HEAD; no local branch to delete";
-    return `${worktree.branch ?? worktree.head.slice(0, 8)} — ${status} — ${
-      dirty ? "Uncommited changes" : "clean"
-    }`;
+    const statuses = [
+      !worktree.branch ? "detached HEAD; no local branch to delete" : hasMerged && hasUnmerged && !mergedIntoPrimary ? "unmerged" : null,
+      dirty ? "Uncommitted changes" : null,
+    ].filter(Boolean);
+    return [worktree.branch ?? worktree.head.slice(0, 8), ...statuses].join(" — ");
   });
 
   while (true) {
     const options = eligible.map((candidate, index) => `${selected.has(candidate) ? "[x]" : "[ ]"} ${labels[index]}`);
     const answer = await ctx.ui.select([
-      `Worktree cleanup: ${selected.size}/${eligible.length} selected`,
-      "Toggle worktrees, then choose Review cleanup.",
-      "Selected worktrees will be removed and their local branches safely deleted.",
+      `Clean up worktrees: ${selected.size}/${eligible.length} selected`,
+      ...(hasUnmerged ? ["Some branches are not merged. Git may refuse to delete them."] : []),
     ].join("\n"), [...options, review, cancel]);
     if (answer === undefined || answer === cancel) return null;
     if (answer === review) {

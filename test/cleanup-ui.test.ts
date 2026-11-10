@@ -62,7 +62,7 @@ class CleanupDriver {
   choose(...actions: (string | undefined)[]) { this.actions.push(...actions); }
   select(candidates: CleanupCandidate[]) { return openCleanupSelector(this.ctx, candidates, "main"); }
   checked(branch: string, expected: boolean, prompt = 0) {
-    const row = this.prompts[prompt]!.options.find(option => option.slice(4).startsWith(`${branch} —`));
+    const row = this.prompts[prompt]!.options.find(option => (option.slice(4) === branch || option.slice(4).startsWith(`${branch} —`)));
     assert.ok(row, `Missing worktree ${branch}`);
     assert.ok(row.startsWith(expected ? "[x]" : "[ ]"), row);
   }
@@ -93,10 +93,10 @@ for (const mode of ["tui", "rpc"] as const) {
     ui.checked("merged", true);
     ui.checked("dirty", false);
     ui.checked("unmerged", false);
-    assert.match(ui.prompts[0]!.options.join("\n"), /merged into main/);
-    assert.match(ui.prompts[0]!.options.join("\n"), /Uncommited changes/);
+    assert.match(ui.prompts[0]!.options.join("\n"), /Uncommitted changes/);
     assert.doesNotMatch(ui.prompts[0]!.options.join("\n"), /WARNING|will be lost/);
-    assert.match(ui.prompts[0]!.options.join("\n"), /not merged/);
+    assert.match(ui.prompts[0]!.title, /not merged/);
+    assert.match(ui.prompts[0]!.options.join("\n"), /unmerged/);
   });
 
   test(`${mode}: toggling keeps all entries in one menu with uniform remove-and-delete`, async () => {
